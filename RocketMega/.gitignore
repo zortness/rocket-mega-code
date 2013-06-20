@@ -1,0 +1,7 @@
+build/
+.a
+.o
+.elf
+.hex
+.lss
+.map
