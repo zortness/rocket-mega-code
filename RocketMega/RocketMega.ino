@@ -240,6 +240,15 @@ void loop ()
 	}
 
 	// determine if we need to change state
+	switch(mode)
+	{
+        case MODE_READY: modeReady(); break;
+        case MODE_ASCENT: modeAscent(); break;
+        case MODE_APOGEE: modeApogee(); break;
+        case MODE_DESCENT: modeDescent(); break;
+        case MODE_DESCENT2: modeDescent2(); break;
+        case MODE_TOUCHDOWN: modeTouchdown(); break;
+	}
 
 	// handle serial output on interval
 	if (timer % logInterval == 0)
