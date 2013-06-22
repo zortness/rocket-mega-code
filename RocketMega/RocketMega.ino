@@ -32,51 +32,15 @@ THE SOFTWARE.
 #include <Adafruit_L3GD20.h>
 #include <Wire.h>
 #include <Adafruit_BMP085.h>
-
-// constants
-#define SERIAL_BAUD 57600
-#define GPS_BAUD 9600
-#define LED_PIN 13
-#define SD_CHIP_SELECT 48
-#define SENSORS_DPS_TO_RADS (0.017453293F)
-#define ACCEL_X_CENTER 500
-#define ACCEL_Y_CENTER 500
-
-#define LOG_INTERVAL_SLOW 2000
-#define LOG_INTERVAL_FAST 1000
-#define ALTIMETER_INTERVAL_SLOW 1000
-#define ALTIMETER_INTERVAL_FAST 250
-#define GYRO_INTERVAL_SLOW 1000
-#define GYRO_INTERVAL_FAST 500
-
-#define DEFAULT_ASCENT_THRESHOLD 50      // in distance from ACCEL_[X/Y]_CENTER where center is 1G
-#define DEFAULT_APOGEE_THRESHOLD 10      // in distance from ACCEL_[X/Y]_CENTER where center is 1G
-#define DEFAULT_TOUCHDOWN_THRESHOLD 2	 // in distance from ACCEL_[X/Y]_CENTER where center is 1G
-#define DEFAULT_MAIN_ALTITUDE 300        // in meters (added to deck altitude)
-#define DEFAULT_SEALEVEL_PRESSURE 101321 // in pascals, 101325
-
-#define MODE_ERROR -1
-#define MODE_STARTUP 0
-#define MODE_READY 1
-#define MODE_ASCENT 2
-#define MODE_APOGEE 3
-#define MODE_DESCENT 4
-#define MODE_DESCENT2 5
-#define MODE_TOUCHDOWN 6
-
-typedef struct {
-	double q;
-	double r;
-	double x;
-	double p;
-	double k;
-} KalmanState;
+#include "RocketMegaConstants.h"
+#include <KalmanSingleState.h>
 
 // prototypes
 void error(uint8_t errno);
 void readAccel();
 void readAlt();
 void readGyro();
+void readLowAccel();
 void logStatus();
 void logStats();
 void slowIntervals();
@@ -87,14 +51,14 @@ void modeApogee();
 void modeDescent();
 void modeDescent2();
 void modeTouchdown();
-KalmanState kalmanInit(double q, double r, double p, double initialValue);
-void kalmanUpdate(KalmanState* state, double measurement);
 
 // variables
 uint8_t mode = MODE_STARTUP;
 uint8_t altInterval = ALTIMETER_INTERVAL_SLOW;
 uint8_t gyroInterval = GYRO_INTERVAL_SLOW;
 uint8_t logInterval = LOG_INTERVAL_SLOW;
+uint8_t lowAccelInterval = LOW_ACCEL_INTERVAL_SLOW;
+uint8_t highAccelInterval = HIGH_ACCEL_INTERVAL_SLOW;
 
 Adafruit_GPS GPS(&Serial1);
 File logFile;
@@ -123,20 +87,25 @@ float maxPressure = 0;
 
 int xPin = A0;
 int yPin = A1;
-int xForce = 0;
-int yForce = 0;
-int xRotation = 0;
-int yRotation = 0;
-int zRotation = 0;
-float temperature = 0;
-float pressure = 0;
-float altitude = 0;
 boolean ledOn = false;
-uint16_t timer = 0;
+uint32_t counter = 0;
 
-KalmanState xForceK;
-KalmanState yForceK;
+// sensor values
+KalmanSingleState xForce;
+KalmanSingleState yForce;
+KalmanSingleState altitude;
+KalmanSingleState temperature;
+KalmanSingleState pressure;
+KalmanSingleState xRotation;
+KalmanSingleState yRotation;
+KalmanSingleState zRotation;
 
+/**
+* Arduino setup.
+* - Determine if we have an SD card available for logging
+* - Initialize sensors, read each of them a few times to get a baseline for the Kalman filters
+* - Initialize serial lines for GPS and XBee (main)
+*/
 void setup()
 {
 	pinMode(LED_PIN, OUTPUT);
@@ -183,8 +152,28 @@ void setup()
 	}
 
 	Serial.println("Setting up Accelerometer...");
-	xForceK = kalmanInit(0.500, 4.0, (double) ACCEL_X_CENTER, (double) analogRead(xPin));
-	yForceK = kalmanInit(0.500, 4.0, (double) ACCEL_Y_CENTER, (double) analogRead(yPin));
+	for(int i = 0; i < 5; i++)
+    {
+        readAccel();
+        delay(10);
+    }
+
+    Serial.println("Setting up Altimeter...");
+	if (!bmp.begin(BMP085_ULTRALOWPOWER))
+	{
+		Serial.println("Unable to initialize altimeter");
+		error(5);
+	}
+	for (int i = 0; i < 5; i++)
+    {
+        readAlt();
+        delay(100);
+    }
+	startingAltitude = altitude.getValue();
+	minPressure = pressure.getValue();
+	Serial.print("Starting altitude initially set at ");
+	Serial.print(startingAltitude);
+	Serial.println("m...");
 
 	Serial.println("Setting up Gyro...");
 	if (!gyro.begin())
@@ -192,19 +181,11 @@ void setup()
 		Serial.println("Unable to initialize gyro");
 		error(4);
 	}
-
-	Serial.println("Setting up Altimeter...");
-	if (!bmp.begin(BMP085_ULTRALOWPOWER))
-	{
-		Serial.println("Unable to initialize altimeter");
-		error(5);
-	}
-	readAlt();
-	startingAltitude = altitude;
-	minPressure = pressure;
-	Serial.print("Starting altitude initially set at ");
-	Serial.print(altitude);
-	Serial.println("m...");
+	for (int i = 0; i < 5; i++)
+    {
+        readGyro();
+        delay(100);
+    }
 
 	Serial.println("Setting up GPS...");
 	Serial1.begin(GPS_BAUD);
@@ -224,20 +205,29 @@ void setup()
 	mode = MODE_READY;
 }
 
+/**
+* Arduino loop.
+* Read from sensors, detect state transitions, log data.
+*/
 void loop ()
 {
 	// read accelerometer (every loop?)
-	readAccel();
-	// read altimeter on interval
-	if (timer % altInterval == 0)
+	if (counter % highAccelInterval == 0)
+    {
+        readAccel();
+    }
+	if (counter % altInterval == 0)
 	{
 		readAlt();
 	}
-	// read gyro on interval
-	if (timer % gyroInterval == 0)
+	if (counter % gyroInterval == 0)
 	{
 		readGyro();
 	}
+	if (counter % lowAccelInterval == 0)
+    {
+        readLowAccel();
+    }
 
 	// determine if we need to change state
 	switch(mode)
@@ -251,7 +241,7 @@ void loop ()
 	}
 
 	// handle serial output on interval
-	if (timer % logInterval == 0)
+	if (counter % logInterval == 0)
 	{
 		logStatus();
 		if (ledOn)
@@ -265,87 +255,153 @@ void loop ()
 			digitalWrite(LED_PIN, HIGH);
 		}
 	}
-	timer++;
+	counter++;
 }
 
-// read the accelerometer values and store them
+/**
+* Read from the High-G analog accelerometer (fast).
+* This is a dual-axis, and we use a Kalman Filter to eliminate sensor noise.
+*/
 void readAccel()
 {
-	// these will need to be cleaned up with a Kalman filter
-	xForce = analogRead(xPin);
-	yForce = analogRead(yPin);
-	kalmanUpdate(&xForceK, (double)xForce);
-	kalmanUpdate(&yForceK, (double)yForce);
-	if (abs(xForce) - ACCEL_X_CENTER > maxForce)
+	int xForceRaw = abs(analogRead(xPin) - ACCEL_X_CENTER);
+	int yForceRaw = abs(analogRead(yPin) - ACCEL_Y_CENTER);
+
+	if (!xForce.initialized)
+    {
+        xForce.init(HIGH_ACCEL_PROCESS_NOISE, HIGH_ACCEL_MEASURE_NOISE, HIGH_ACCEL_ERROR_COV, xForceRaw);
+    }
+    if (!yForce.initialized)
+    {
+        yForce.init(HIGH_ACCEL_PROCESS_NOISE, HIGH_ACCEL_MEASURE_NOISE, HIGH_ACCEL_ERROR_COV, yForceRaw);
+    }
+    xForce.update(xForceRaw);
+    yForce.update(yForceRaw);
+	if (xForce.getValue() > maxForce)
 	{
-		maxForce = abs(xForce) - ACCEL_X_CENTER;
+		maxForce = xForce.getValue();
 	}
-	if (abs(yForce) - ACCEL_Y_CENTER > maxForce)
+	if (yForce.getValue()  > maxForce)
 	{
-		maxForce = abs(yForce) - ACCEL_Y_CENTER;
+		maxForce = yForce.getValue();
 	}
 }
 
-// read the altimeter values and store them
+/**
+* Read from the i2c Altimeter
+*/
 void readAlt()
 {
 	// these will need to be cleaned up with a Kalman filter
-	temperature = bmp.readTemperature();
-	altitude = bmp.readAltitude();
-	pressure = bmp.readPressure();
-	altitude = 44330 * (1.0 - pow(pressure/sealevelPressure,0.1903));
-	if (altitude > maxAltitude)
+	float rawTemperature = bmp.readTemperature();
+	float rawPressure = bmp.readPressure();
+	float rawAltitude = 44330 * (1.0 - pow(rawPressure / sealevelPressure , 0.1903));
+
+	if (!altitude.initialized)
+    {
+        altitude.init(ALTITUDE_PROCESS_NOISE, ALTITUDE_MEASURE_NOISE, ALTITUDE_ERROR_COV, rawAltitude);
+        maxAltitude = rawAltitude;
+    }
+    altitude.update(rawAltitude);
+    if (!pressure.initialized)
+    {
+        pressure.init(PRESSURE_PROCESS_NOISE, PRESSURE_MEASURE_NOISE, PRESSURE_ERROR_COV, rawPressure);
+        minPressure = rawPressure;
+        maxPressure = rawPressure;
+    }
+    pressure.update(rawPressure);
+    if (!temperature.initialized)
+    {
+        temperature.init(TEMPERATURE_PROCESS_NOISE, TEMPERATURE_MEASURE_NOISE, TEMPERATURE_ERROR_COV, rawTemperature);
+        minTemperature = rawTemperature;
+        maxTemperature = rawTemperature;
+    }
+    temperature.update(rawTemperature);
+	if (altitude.getValue() > maxAltitude)
 	{
-		maxAltitude = altitude;
+		maxAltitude = altitude.getValue();
 	}
-	if (temperature < minTemperature)
+	if (temperature.getValue() < minTemperature)
 	{
-		minTemperature = temperature;
+		minTemperature = temperature.getValue();
 	}
-	if (temperature > maxTemperature)
+	if (temperature.getValue() > maxTemperature)
 	{
-		maxTemperature = temperature;
+		maxTemperature = temperature.getValue();
 	}
-	if (pressure < minPressure)
+	if (pressure.getValue() < minPressure)
 	{
-		minPressure = pressure;
+		minPressure = pressure.getValue();
 	}
-	if (pressure > maxPressure)
+	if (pressure.getValue() > maxPressure)
 	{
-		maxPressure = pressure;
+		maxPressure = pressure.getValue();
 	}
 }
 
-// read the gyro values and store them
+/**
+* Read from i2c Gyro
+*/
 void readGyro()
 {
 	gyro.read();
-	xRotation = (int)gyro.data.x;
-	yRotation = (int)gyro.data.y;
-	zRotation = (int)gyro.data.z;
+	if (!xRotation.initialized)
+    {
+        xRotation.init(GYRO_PROCESS_NOISE, GYRO_MEASURE_NOISE, GYRO_ERROR_COV, gyro.data.x);
+    }
+    if (!yRotation.initialized)
+    {
+        yRotation.init(GYRO_PROCESS_NOISE, GYRO_MEASURE_NOISE, GYRO_ERROR_COV, gyro.data.y);
+    }
+    if (!zRotation.initialized)
+    {
+        zRotation.init(GYRO_PROCESS_NOISE, GYRO_MEASURE_NOISE, GYRO_ERROR_COV, gyro.data.y);
+    }
+	xRotation.update(gyro.data.x);
+	yRotation.update(gyro.data.y);
+	zRotation.update(gyro.data.z);
 }
 
-// set reading and logging rates at the slower intervals
+/**
+* Read from the lower-G i2c Accelerometer/Compass
+*/
+void readLowAccel()
+{
+
+
+}
+
+/**
+* Set the sensor polling and logging intervals to "slow".
+*/
 void slowIntervals()
 {
 	altInterval = ALTIMETER_INTERVAL_SLOW;
 	gyroInterval = GYRO_INTERVAL_SLOW;
 	logInterval = LOG_INTERVAL_SLOW;
+	lowAccelInterval = LOW_ACCEL_INTERVAL_SLOW;
+	highAccelInterval = HIGH_ACCEL_INTERVAL_SLOW;
 }
 
-// set reading and logging rates at the faster intervals
+/**
+* Set the sensor polling and logging intervals to "fast".
+*/
 void fastIntervals()
 {
 	altInterval = ALTIMETER_INTERVAL_FAST;
 	gyroInterval = GYRO_INTERVAL_FAST;
 	logInterval = LOG_INTERVAL_FAST;
+	lowAccelInterval = LOW_ACCEL_INTERVAL_FAST;
+	highAccelInterval = HIGH_ACCEL_INTERVAL_FAST;
 }
 
-// Ready and waiting for liftoff
+/**
+* Ready mode, looking for liftoff condition.
+*/
 void modeReady()
 {
-	if( abs(xForce - ACCEL_X_CENTER) > ascentThreshold
-		|| abs(yForce - ACCEL_Y_CENTER) > ascentThreshold )
+	if( xForce.getValue() > ascentThreshold
+		|| yForce.getValue() > ascentThreshold )
 	{
 		mode = MODE_ASCENT;
 		launchTime = millis();
@@ -359,10 +415,12 @@ void modeReady()
 		return;
 	}
 	// keep adjusting starting altitude (as sensor warms up, etc)
-	startingAltitude = altitude;
+	startingAltitude = altitude.getValue();
 }
 
-// Going up, waiting for apogee
+/**
+* Ascent mode, looking for apogee condition.
+*/
 void modeAscent()
 {
 	// constantly check accelerometer for levelling off or swing in direction of force
@@ -371,8 +429,8 @@ void modeAscent()
 	// switch to apogee mode
 	mode = MODE_APOGEE;
 
-	if( abs(xForce - ACCEL_X_CENTER) < apogeeThreshold
-		&& abs(yForce - ACCEL_Y_CENTER) < apogeeThreshold )
+	if( xForce.getValue() < apogeeThreshold
+		&& yForce.getValue() < apogeeThreshold )
 	{
 		mode = MODE_APOGEE;
 		apogeeTime = millis();
@@ -382,11 +440,12 @@ void modeAscent()
 			logFile.println("=========== Apogee Detected! ============");
 			logFile.flush();
 		}
-
 	}
 }
 
-// Hang time at apogee for a second or so
+/**
+* Apogee mode, looking for descent.
+*/
 void modeApogee()
 {
 	// wait for altitude to start dropping?
@@ -394,14 +453,15 @@ void modeApogee()
 	mode = MODE_DESCENT;
 }
 
-// descent under drogue chute, waiting for altitude
+/**
+* Descent mode, looking for main deployment condition.
+*/
 void modeDescent()
 {
 	// constantly check altimeter for main chute deployment altitude
 	// check GPS altitude too?
-	if (altitude <= (startingAltitude + mainDeployAltitude))
+	if (altitude.getValue() <= (startingAltitude + mainDeployAltitude))
 	{
-		// TODO: set Main Relay toggle to HIGH
 		mode = MODE_DESCENT2;
 		mainTime = millis();
 		Serial.println("=========== Main Deploy Altitude Detected! ============");
@@ -410,21 +470,23 @@ void modeDescent()
 			logFile.println("=========== Main Deploy Altitude Detected! ============");
 			logFile.flush();
 		}
+		// TODO: set Main Relay toggle to HIGH
 	}
 }
 
-// under full chute, waiting for touchdown on the ground
+/**
+* Main chute deployed, looking for touchdown.
+*/
 void modeDescent2()
 {
 	// constantly check accelerometer for midpoint +/- 20?
-	if ( abs(xForce - ACCEL_X_CENTER) < touchdownThreshold
-		&& abs(yForce - ACCEL_Y_CENTER) < touchdownThreshold )
+	if ( xForce.getValue() < touchdownThreshold
+		&& yForce.getValue() < touchdownThreshold )
 	{
 		// switch to touchdown
 		mode = MODE_TOUCHDOWN;
 		touchdownTime = millis();
 		slowIntervals();
-		// TODO: turn off Drogue and Main relays!
 		Serial.println("=========== Touchdown! ============");
 		if (logSd)
 		{
@@ -437,7 +499,9 @@ void modeDescent2()
 	}
 }
 
-// on the ground, just broadcast location and stuff
+/**
+* Touchdown complete, awaiting pickup.
+*/
 void modeTouchdown()
 {
 	// sparse logging
@@ -445,7 +509,9 @@ void modeTouchdown()
 	delay(100); // multiplied by the logInterval
 }
 
-// main serial line
+/**
+* Await any command input on the main serial line (from the XBee or console)
+*/
 void serialEvent()
 {
 	//read serial as a character
@@ -466,7 +532,9 @@ void serialEvent()
 	}
 }
 
-// GPS serial line
+/**
+* Await any input from the GPS serial line.
+*/
 void serialEvent1()
 {
 	char ser;
@@ -507,31 +575,41 @@ void serialEvent1()
 	}
 }
 
+/**
+* Log our current status, to MicroSD and Serial
+*/
 void logStatus()
 {
 	char alt[32];
-	dtostrf(altitude, 5, 2, alt);
+	dtostrf(altitude.getValue(), 5, 2, alt);
 	char prs[32];
-	dtostrf(pressure, 8, 2, prs);
+	dtostrf(pressure.getValue(), 8, 2, prs);
 	char tem[32];
-	dtostrf(temperature, 4, 2, tem);
+	dtostrf(temperature.getValue(), 4, 2, tem);
 
 	char xf[32];
-	dtostrf(xForceK.x, 4, 2, xf);
+	dtostrf(xForce.getValue(), 4, 2, xf);
 	char yf[32];
-	dtostrf(yForceK.x, 4, 2, yf);
+	dtostrf(yForce.getValue(), 4, 2, yf);
+
+	char xr[32];
+	dtostrf(xRotation.getValue(), 4, 2, xr);
+	char yr[32];
+	dtostrf(yRotation.getValue(), 4, 2, yr);
+	char zr[32];
+	dtostrf(zRotation.getValue(), 4, 2, zr);
 
 	String printBuffer = "S:";
 	printBuffer += mode; printBuffer += ",";
 	printBuffer += millis(); printBuffer += ',';
 	printBuffer += alt; printBuffer += "m,";
-	printBuffer += xForce; printBuffer += "x,";
-		printBuffer += '['; printBuffer += xf; printBuffer += "x],";
-	printBuffer += yForce; printBuffer += "y,";
-		printBuffer += '['; printBuffer += yf; printBuffer += "y],";
-	printBuffer += xRotation; printBuffer += "x,";
-	printBuffer += yRotation; printBuffer += "y,";
-	printBuffer += zRotation; printBuffer += "z,";
+	printBuffer += xf; printBuffer += "x,";
+	//	printBuffer += '['; printBuffer += xf; printBuffer += "x],";
+	printBuffer += yf; printBuffer += "y,";
+	//	printBuffer += '['; printBuffer += yf; printBuffer += "y],";
+	printBuffer += xr; printBuffer += "x,";
+	printBuffer += yr; printBuffer += "y,";
+	printBuffer += zr; printBuffer += "z,";
 	printBuffer += tem; printBuffer += "C,";
 	printBuffer += prs; printBuffer += "pa,";
 	printBuffer += (int)GPS.fix; printBuffer += ";";
@@ -588,7 +666,9 @@ void logStatus()
 	}
 }
 
-// log interesting stats of the flight
+/**
+* Log our flight stats.
+*/
 void logStats()
 {
 	char stalt[32];
@@ -627,9 +707,13 @@ void logStats()
 	}
 }
 
+/**
+* Unrecoverable error, uh oh.
+*/
 void error(uint8_t errno)
 {
 	mode = MODE_ERROR;
+	Serial.println("=========== ERROR: errno ============");
 	while(1)
 	{
 		uint8_t i;
@@ -645,22 +729,4 @@ void error(uint8_t errno)
 			delay(200);
 		}
 	}
-}
-
-KalmanState kalmanInit(double q, double r, double p, double initialValue)
-{
-	KalmanState result;
-	result.q = q;
-	result.r = r;
-	result.p = p;
-	result.x = initialValue;
-	return result;
-}
-
-void kalmanUpdate(KalmanState* state, double measurement)
-{
-	state->p = state->p + state->q;
-	state->k = state->p / (state->p + state->r);
-	state->x = state->x + state->k * (measurement - state->x);
-	state->p = (1 - state->k) * state->p;
 }

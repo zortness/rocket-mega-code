@@ -5,3 +5,5 @@ build/
 .hex
 .lss
 .map
+RocketMega.depend
+RocketMega.layout

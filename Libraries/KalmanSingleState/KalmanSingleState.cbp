@@ -2,12 +2,12 @@
 <CodeBlocks_project_file>
 	<FileVersion major="1" minor="6" />
 	<Project>
-		<Option title="RocketMega" />
+		<Option title="KalmanSingleState" />
 		<Option pch_mode="2" />
 		<Option compiler="gcc" />
 		<Build>
 			<Target title="Simulator - Debug">
-				<Option output="build/RocketMega_sim.exe" prefix_auto="1" extension_auto="0" />
+				<Option output="build/KalmanSingleState_sim.exe" prefix_auto="1" extension_auto="0" />
 				<Option object_output="obj/Debug/" />
 				<Option type="1" />
 				<Option compiler="GCC" />
@@ -29,7 +29,7 @@
 				</Environment>
 			</Target>
 			<Target title="Simulator - Release">
-				<Option output="build/RocketMega_sim.exe" prefix_auto="1" extension_auto="0" />
+				<Option output="build/KalmanSingleState_sim.exe" prefix_auto="1" extension_auto="0" />
 				<Option object_output="obj/Release/" />
 				<Option type="1" />
 				<Option compiler="GCC" />
@@ -52,7 +52,7 @@
 				</Environment>
 			</Target>
 			<Target title="Arduino Uno">
-				<Option output="build/RocketMega_${BOARD_ID}.elf" prefix_auto="1" extension_auto="0" />
+				<Option output="build/KalmanSingleState_${BOARD_ID}.elf" prefix_auto="1" extension_auto="0" />
 				<Option object_output="build" />
 				<Option type="1" />
 				<Option compiler="avrgcc" />
@@ -89,7 +89,7 @@
 				</Environment>
 			</Target>
 			<Target title="Arduino Leonardo">
-				<Option output="build/RocketMega_${BOARD_ID}.elf" prefix_auto="1" extension_auto="0" />
+				<Option output="build/KalmanSingleState_${BOARD_ID}.elf" prefix_auto="1" extension_auto="0" />
 				<Option object_output="build" />
 				<Option type="1" />
 				<Option compiler="avrgcc" />
@@ -128,7 +128,7 @@
 				</Environment>
 			</Target>
 			<Target title="Arduino Esplora">
-				<Option output="build/RocketMega_${BOARD_ID}.elf" prefix_auto="1" extension_auto="0" />
+				<Option output="build/KalmanSingleState_${BOARD_ID}.elf" prefix_auto="1" extension_auto="0" />
 				<Option object_output="build" />
 				<Option type="1" />
 				<Option compiler="avrgcc" />
@@ -167,7 +167,7 @@
 				</Environment>
 			</Target>
 			<Target title="Arduino Micro">
-				<Option output="build/RocketMega_${BOARD_ID}.elf" prefix_auto="1" extension_auto="0" />
+				<Option output="build/KalmanSingleState_${BOARD_ID}.elf" prefix_auto="1" extension_auto="0" />
 				<Option object_output="build" />
 				<Option type="1" />
 				<Option compiler="avrgcc" />
@@ -206,7 +206,7 @@
 				</Environment>
 			</Target>
 			<Target title="Arduino Duemilanove (328)">
-				<Option output="build/RocketMega_${BOARD_ID}.elf" prefix_auto="1" extension_auto="0" />
+				<Option output="build/KalmanSingleState_${BOARD_ID}.elf" prefix_auto="1" extension_auto="0" />
 				<Option object_output="build" />
 				<Option type="1" />
 				<Option compiler="avrgcc" />
@@ -243,7 +243,7 @@
 				</Environment>
 			</Target>
 			<Target title="Arduino Duemilanove (168)">
-				<Option output="build/RocketMega_${BOARD_ID}.elf" prefix_auto="1" extension_auto="0" />
+				<Option output="build/KalmanSingleState_${BOARD_ID}.elf" prefix_auto="1" extension_auto="0" />
 				<Option object_output="build" />
 				<Option type="1" />
 				<Option compiler="avrgcc" />
@@ -280,7 +280,7 @@
 				</Environment>
 			</Target>
 			<Target title="Arduino Nano (328)">
-				<Option output="build/RocketMega_${BOARD_ID}.elf" prefix_auto="1" extension_auto="0" />
+				<Option output="build/KalmanSingleState_${BOARD_ID}.elf" prefix_auto="1" extension_auto="0" />
 				<Option object_output="build" />
 				<Option type="1" />
 				<Option compiler="avrgcc" />
@@ -317,7 +317,7 @@
 				</Environment>
 			</Target>
 			<Target title="Arduino Nano (168)">
-				<Option output="build/RocketMega_${BOARD_ID}.elf" prefix_auto="1" extension_auto="0" />
+				<Option output="build/KalmanSingleState_${BOARD_ID}.elf" prefix_auto="1" extension_auto="0" />
 				<Option object_output="build" />
 				<Option type="1" />
 				<Option compiler="avrgcc" />
@@ -354,7 +354,7 @@
 				</Environment>
 			</Target>
 			<Target title="Arduino Mini (328)">
-				<Option output="build/RocketMega_${BOARD_ID}.elf" prefix_auto="1" extension_auto="0" />
+				<Option output="build/KalmanSingleState_${BOARD_ID}.elf" prefix_auto="1" extension_auto="0" />
 				<Option object_output="build" />
 				<Option type="1" />
 				<Option compiler="avrgcc" />
@@ -391,7 +391,7 @@
 				</Environment>
 			</Target>
 			<Target title="Arduino Mini (168)">
-				<Option output="build/RocketMega_${BOARD_ID}.elf" prefix_auto="1" extension_auto="0" />
+				<Option output="build/KalmanSingleState_${BOARD_ID}.elf" prefix_auto="1" extension_auto="0" />
 				<Option object_output="build" />
 				<Option type="1" />
 				<Option compiler="avrgcc" />
@@ -428,7 +428,7 @@
 				</Environment>
 			</Target>
 			<Target title="Arduino Pro Mini (328)">
-				<Option output="build/RocketMega_${BOARD_ID}.elf" prefix_auto="1" extension_auto="0" />
+				<Option output="build/KalmanSingleState_${BOARD_ID}.elf" prefix_auto="1" extension_auto="0" />
 				<Option object_output="build" />
 				<Option type="1" />
 				<Option compiler="avrgcc" />
@@ -465,7 +465,7 @@
 				</Environment>
 			</Target>
 			<Target title="Arduino Pro Mini (168)">
-				<Option output="build/RocketMega_${BOARD_ID}.elf" prefix_auto="1" extension_auto="0" />
+				<Option output="build/KalmanSingleState_${BOARD_ID}.elf" prefix_auto="1" extension_auto="0" />
 				<Option object_output="build" />
 				<Option type="1" />
 				<Option compiler="avrgcc" />
@@ -502,7 +502,7 @@
 				</Environment>
 			</Target>
 			<Target title="Arduino Mega 2560/ADK">
-				<Option output="build/RocketMega_${BOARD_ID}.elf" prefix_auto="1" extension_auto="0" />
+				<Option output="build/KalmanSingleState_${BOARD_ID}.elf" prefix_auto="1" extension_auto="0" />
 				<Option object_output="build" />
 				<Option type="1" />
 				<Option compiler="avrgcc" />
@@ -538,7 +538,7 @@
 				</Environment>
 			</Target>
 			<Target title="Arduino Mega 1280">
-				<Option output="build/RocketMega_${BOARD_ID}.elf" prefix_auto="1" extension_auto="0" />
+				<Option output="build/KalmanSingleState_${BOARD_ID}.elf" prefix_auto="1" extension_auto="0" />
 				<Option object_output="build" />
 				<Option type="1" />
 				<Option compiler="avrgcc" />
@@ -574,7 +574,7 @@
 				</Environment>
 			</Target>
 			<Target title="Arduino Mega 8">
-				<Option output="build/RocketMega_${BOARD_ID}.elf" prefix_auto="1" extension_auto="0" />
+				<Option output="build/KalmanSingleState_${BOARD_ID}.elf" prefix_auto="1" extension_auto="0" />
 				<Option object_output="build" />
 				<Option type="1" />
 				<Option compiler="avrgcc" />
@@ -611,7 +611,7 @@
 				</Environment>
 			</Target>
 			<Target title="Microduino Core+ (644P)">
-				<Option output="build/RocketMega_${BOARD_ID}.elf" prefix_auto="1" extension_auto="0" />
+				<Option output="build/KalmanSingleState_${BOARD_ID}.elf" prefix_auto="1" extension_auto="0" />
 				<Option object_output="build" />
 				<Option type="1" />
 				<Option compiler="avrgcc" />
@@ -651,11 +651,8 @@
 		<Compiler>
 			<Add directory="." />
 		</Compiler>
-		<Unit filename="RocketMega.ino">
-			<Option compile="1" />
-			<Option link="1" />
-		</Unit>
-		<Unit filename="RocketMegaConstants.h" />
+		<Unit filename="KalmanSingleState.cpp" />
+		<Unit filename="KalmanSingleState.h" />
 		<Extensions>
 			<code_completion />
 			<debugger />
