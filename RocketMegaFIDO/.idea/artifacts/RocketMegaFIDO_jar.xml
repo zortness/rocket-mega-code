@@ -1,0 +1,13 @@
+<component name="ArtifactManager">
+  <artifact type="jar" name="RocketMegaFIDO:jar">
+    <output-path>$PROJECT_DIR$/out/artifacts/RocketMegaFIDO_jar</output-path>
+    <root id="archive" name="RocketMegaFIDO.jar">
+      <element id="module-output" name="RocketMegaFIDO" />
+      <element id="extracted-dir" path="$PROJECT_DIR$/lib/log4j-1.2.16.jar" path-in-jar="/" />
+      <element id="extracted-dir" path="$PROJECT_DIR$/lib/jcommon-1.0.17.jar" path-in-jar="/" />
+      <element id="extracted-dir" path="$PROJECT_DIR$/lib/commons-lang-2.5.jar" path-in-jar="/" />
+      <element id="extracted-dir" path="$PROJECT_DIR$/lib/jfreechart-1.0.14.jar" path-in-jar="/" />
+      <element id="extracted-dir" path="$PROJECT_DIR$/lib/nrjavaserial-3.8.8.jar" path-in-jar="/" />
+    </root>
+  </artifact>
+</component>

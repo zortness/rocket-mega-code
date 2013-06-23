@@ -26,6 +26,12 @@
         <dependency org="commons-lang" name="commons-lang" rev="2.5" conf="compile->master(*);runtime->default"/>
         <dependency org="org.jfree" name="jfreechart" rev="1.0.14" conf="compile->master(*);runtime->default"/>
         <dependency org="org.jfree" name="jcommon" rev="1.0.17" conf="compile->master(*);runtime->default"/>
-        <dependency org="org.eclipse.swt" name="${swt.target}" rev="4.2.2" conf="compile->master(*);test->master(*)"/>
+        <!--<dependency org="org.eclipse.swt" name="${swt.target}" rev="4.2.2" conf="compile->master(*);runtime->default"/>-->
+        <dependency org="com.neuronrobotics" name="nrjavaserial" rev="3.8.8" conf="compile->master(*);runtime->default"/>
+
+        <!-- intelliJ libs for generating forms -->
+        <dependency org="com.intellij" name="annotations" rev="12.0" conf="tasks->default"/>
+        <dependency org="com.intellij" name="forms_rt" rev="7.0.3" conf="tasks->default"/>
+        <dependency org="com.intellij" name="javac2" rev="7.0.3" conf="tasks->default"/>
 	</dependencies>
 </ivy-module>

@@ -4,8 +4,12 @@
 	<resolvers>
 		<ibiblio name="ibiblio" m2compatible="true"/>
         <ibiblio name="swt" m2compatible="true" root="https://swt-repo.googlecode.com/svn/repo/"/>
+        <url name="nrjavaserial">
+            <artifact pattern="http://nrjavaserial.googlecode.com/files/[artifact]-[revision].[ext]" />
+        </url>
     </resolvers>
 	<modules>
         <module organisation="org.eclipse.swt" name="*" resolver="swt" />
+        <module organisation="com.neuronrobotics" name="nrjavaserial" resolver="nrjavaserial" />
 	</modules>
 </ivysettings>

@@ -1,10 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project name="sojo-api-petfinder" basedir="." default="jar" xmlns:ivy="antlib:org.apache.ivy.ant">
-    <description>Tools for importing data to the Sojo API from PetFinder</description>
+<project name="RocketMegaFido" basedir="." default="jar" xmlns:ivy="antlib:org.apache.ivy.ant">
+    <description>The FIDO app for communicating with the RocketMega embedded software</description>
 
     <loadproperties srcFile="build.properties" />
 
     <property name="lib.dir" value="lib" />
+    <property name="task.lib.dir" value="lib/task" />
     <property name="build.dir" value="bin" />
     <property name="src.dir" value="src" />
     <property name="resource.dir" value="resources" />
@@ -22,6 +23,7 @@
 
     <target name="resolve" description="resolve dependencies">
         <ivy:retrieve conf="compile"/>
+        <ivy:retrieve conf="tasks" pattern="${task.lib.dir}/[artifact]-[revision].[ext]"/>
     </target>
 
     <target name="resolve-runtime" description="resolve dependencies">
@@ -45,17 +47,30 @@
     </target>
 
     <target name="compile" depends="clean,resolve">
-        <javac srcdir="${src.dir}" destdir="${build.dir}/classes" verbose="false" debug="true" debugLevel="lines,vars,source"
+
+        <path id="javac2.class.path">
+            <fileset dir="${task.lib.dir}"/>
+        </path>
+        <taskdef name="javac2" classname="com.intellij.ant.Javac2" classpathref="javac2.class.path"/>
+
+        <javac2 srcdir="${src.dir}" destdir="${build.dir}/classes" verbose="false" debug="true" debugLevel="lines,vars,source"
                includeantruntime="false" target="1.6">
             <classpath refid="classpath.base" />
-        </javac>
-        <copy todir="${build.dir}/classes">
+        </javac2>
+        <!--<copy todir="${build.dir}/classes">
             <fileset dir="${src.dir}">
                 <exclude name="**/*.java" />
             </fileset>
-        </copy>
+        </copy>-->
         <copy todir="${build.dir}/classes">
             <fileset dir="${resource.dir}">
+            </fileset>
+        </copy>
+        <!-- copy the IntelliJ form pieces to the library folder -->
+        <unzip src="${task.lib.dir}/forms_rt-7.0.3.jar" dest="${task.lib.dir}/exp" />
+        <mkdir dir="${build.dir}/classes/com/intellij/uiDesigner/core" />
+        <copy todir="${build.dir}/classes/com/intellij/uiDesigner/core">
+            <fileset dir="${task.lib.dir}/exp/com/intellij/uiDesigner/core">
             </fileset>
         </copy>
     </target>
@@ -77,11 +92,13 @@
 
     <target name="jar" depends="compile">
         <mkdir dir="${jar.dir}" />
-        <jar destfile="${jar.dir}/${jar.name}-${jar.version}.jar" basedir="${build.dir}/classes"
-             manifest="${basedir}/src/META-INF/MANIFEST.MF">
+        <jar destfile="${jar.dir}/${jar.name}-${jar.version}.jar" basedir="${build.dir}/classes">
             <zipgroupfileset dir="${lib.dir}" includes="*.jar">
-                <!--<exclude name="**/*.MF"/>-->
+                <exclude name="junit*.jar"/>
             </zipgroupfileset>
+            <manifest>
+                <attribute name="Main-Class" value="net.kopfhaus.rocketmega.fido.FidoMain" />
+            </manifest>
         </jar>
     </target>
 

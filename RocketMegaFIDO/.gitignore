@@ -5,8 +5,10 @@ Thumbs.db
 #*#
 *~
 build/
+bin/
 jar/
 lib/
+out/
 workspace.xml
 
 # Package Files #
