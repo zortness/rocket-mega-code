@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project name="sojo-api-petfinder" basedir="." default="jar" xmlns:ivy="antlib:org.apache.ivy.ant">
+    <description>Tools for importing data to the Sojo API from PetFinder</description>
+
+    <loadproperties srcFile="build.properties" />
+
+    <property name="lib.dir" value="lib" />
+    <property name="build.dir" value="bin" />
+    <property name="src.dir" value="src" />
+    <property name="resource.dir" value="resources" />
+    <property name="jar.dir" value="jar" />
+    <property name="jar.name" value="RocketMegaFido" />
+    <property name="jar.version" value="${build.version}" />
+
+    <ivy:settings file="ivysettings.xml" />
+
+    <path id="classpath.base">
+        <fileset dir="${lib.dir}"/>
+    </path>
+
+    <loadproperties srcFile="${resource.dir}/log4j.properties" />
+
+    <target name="resolve" description="resolve dependencies">
+        <ivy:retrieve conf="compile"/>
+    </target>
+
+    <target name="resolve-runtime" description="resolve dependencies">
+        <ivy:retrieve conf="default" pattern="${lib.dir}/runtime/[artifact]-[revision].[ext]"/>
+    </target>
+
+    <target name="report" depends="resolve" description="generates a report of dependencies">
+        <ivy:report todir="${build.dir}"/>
+    </target>
+
+    <target name="clean-cache" description="clean the ivy cache">
+        <ivy:cleancache />
+    </target>
+
+    <target name="clean" description="clean project directories">
+        <delete dir="${build.dir}" />
+        <mkdir dir="${build.dir}" />
+        <mkdir dir="${build.dir}/classes" />
+        <delete dir="${jar.dir}" />
+        <delete dir="${lib.dir}" />
+    </target>
+
+    <target name="compile" depends="clean,resolve">
+        <javac srcdir="${src.dir}" destdir="${build.dir}/classes" verbose="false" debug="true" debugLevel="lines,vars,source"
+               includeantruntime="false" target="1.6">
+            <classpath refid="classpath.base" />
+        </javac>
+        <copy todir="${build.dir}/classes">
+            <fileset dir="${src.dir}">
+                <exclude name="**/*.java" />
+            </fileset>
+        </copy>
+        <copy todir="${build.dir}/classes">
+            <fileset dir="${resource.dir}">
+            </fileset>
+        </copy>
+    </target>
+
+    <target name="test" depends="compile">
+        <junit printsummary="yes" haltonfailure="yes" showoutput="true">
+            <classpath>
+                <path refid="classpath.base" />
+                <pathelement location="bin" />
+            </classpath>
+            <formatter type="brief" usefile="false" />
+            <batchtest fork="yes">
+                <fileset dir="src">
+                    <include name="**/*Test.java" />
+                </fileset>
+            </batchtest>
+        </junit>
+    </target>
+
+    <target name="jar" depends="compile">
+        <mkdir dir="${jar.dir}" />
+        <jar destfile="${jar.dir}/${jar.name}-${jar.version}.jar" basedir="${build.dir}/classes"
+             manifest="${basedir}/src/META-INF/MANIFEST.MF">
+            <zipgroupfileset dir="${lib.dir}" includes="*.jar">
+                <!--<exclude name="**/*.MF"/>-->
+            </zipgroupfileset>
+        </jar>
+    </target>
+
+</project>

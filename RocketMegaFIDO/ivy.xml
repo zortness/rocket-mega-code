@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<ivy-module version="2.0">
+    <info
+            organisation="net.kopfhaus"
+            module="rocket-mega-fido"
+            revision="${build.version}"
+            >
+    </info>
+	<configurations>
+		<conf name="default" visibility="public" description="runtime dependencies and master artifact can be used with this conf" extends="runtime,master"/>
+		<conf name="compile" visibility="public" description="this is the default scope, used if none is specified. Compile dependencies are available in all classpaths."/>
+		<conf name="master" visibility="public" description="contains only the artifact published by this module itself, with no transitive dependencies"/>
+		<conf name="runtime" visibility="public" description="this scope indicates that the dependency is not required for compilation, but is for execution. It is in the runtime and test classpaths, but not the compile classpath."/>
+		<conf name="tasks" visibility="public" description="Ant tasks"/>
+		<conf name="test" visibility="private" description="this scope indicates that the dependency is not required for normal use of the application, and is only available for the test compilation and execution phases." extends="runtime"/>
+	</configurations>
+	<dependencies>
+
+        <!-- Logging -->
+        <dependency org="log4j" name="log4j" rev="1.2.16" conf="compile->master(*);runtime->default"/>
+
+        <!-- Testing -->
+        <dependency org="junit" name="junit" rev="4.10" conf="compile->master(*);test->master(*)"/>
+
+        <!-- Other Stuff -->
+        <dependency org="commons-lang" name="commons-lang" rev="2.5" conf="compile->master(*);runtime->default"/>
+        <dependency org="org.jfree" name="jfreechart" rev="1.0.14" conf="compile->master(*);runtime->default"/>
+        <dependency org="org.jfree" name="jcommon" rev="1.0.17" conf="compile->master(*);runtime->default"/>
+        <dependency org="org.eclipse.swt" name="${swt.target}" rev="4.2.2" conf="compile->master(*);test->master(*)"/>
+	</dependencies>
+</ivy-module>

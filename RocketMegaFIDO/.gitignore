@@ -1,0 +1,15 @@
+*.class
+*.swp
+.DS_Store*
+Thumbs.db
+#*#
+*~
+build/
+jar/
+lib/
+workspace.xml
+
+# Package Files #
+*.jar
+*.war
+*.ear
