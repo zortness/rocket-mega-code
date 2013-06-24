@@ -32,6 +32,7 @@ THE SOFTWARE.
 #include <Adafruit_L3GD20.h>
 #include <Wire.h>
 #include <Adafruit_BMP085.h>
+#include <Adafruit_LSM303.h>
 #include "RocketMegaConstants.h"
 #include <KalmanSingleState.h>
 
@@ -68,6 +69,7 @@ boolean logSd = false;
 boolean logRawGps = true;
 Adafruit_L3GD20 gyro;
 Adafruit_BMP085 bmp;
+Adafruit_LSM303 lsm;
 float sealevelPressure = DEFAULT_SEALEVEL_PRESSURE;
 float startingAltitude = 0;
 float maxAltitude = 0;
@@ -89,6 +91,7 @@ int xPin = A0;
 int yPin = A1;
 boolean ledOn = false;
 uint32_t counter = 0;
+uint32_t printCount = 0;
 
 // sensor values
 KalmanSingleState xForce;
@@ -99,6 +102,13 @@ KalmanSingleState pressure;
 KalmanSingleState xRotation;
 KalmanSingleState yRotation;
 KalmanSingleState zRotation;
+KalmanSingleState lxForce;
+KalmanSingleState lyForce;
+KalmanSingleState lzForce;
+KalmanSingleState xMag;
+KalmanSingleState yMag;
+KalmanSingleState zMag;
+KalmanSingleState orientation;
 
 /**
 * Arduino setup.
@@ -151,11 +161,11 @@ void setup()
 		}
 	}
 
-	Serial.println("Setting up Accelerometer...");
+	Serial.println("Setting up High-G Accelerometer...");
 	for(int i = 0; i < 5; i++)
     {
         readAccel();
-        delay(10);
+        delay(100);
     }
 
     Serial.println("Setting up Altimeter...");
@@ -184,6 +194,18 @@ void setup()
 	for (int i = 0; i < 5; i++)
     {
         readGyro();
+        delay(100);
+    }
+
+    Serial.println("Setting up Low-G Accelerometer...");
+    if (!lsm.begin())
+    {
+        Serial.println("Unable to initialize altimeter");
+		error(6);
+    }
+    for (int i = 0; i < 5; i++)
+    {
+        readLowAccel();
         delay(100);
     }
 
@@ -367,8 +389,42 @@ void readGyro()
 */
 void readLowAccel()
 {
-
-
+    lsm.read();
+    if (!lxForce.initialized)
+    {
+        lxForce.init(LOW_ACCEL_PROCESS_NOISE, LOW_ACCEL_MEASURE_NOISE, LOW_ACCEL_ERROR_COV, lsm.accelData.x);
+    }
+    if (!lyForce.initialized)
+    {
+        lyForce.init(LOW_ACCEL_PROCESS_NOISE, LOW_ACCEL_MEASURE_NOISE, LOW_ACCEL_ERROR_COV, lsm.accelData.y);
+    }
+    if (!lzForce.initialized)
+    {
+        lzForce.init(LOW_ACCEL_PROCESS_NOISE, LOW_ACCEL_MEASURE_NOISE, LOW_ACCEL_ERROR_COV, lsm.accelData.z);
+    }
+    if (!xMag.initialized)
+    {
+        xMag.init(LOW_ACCEL_PROCESS_NOISE, LOW_ACCEL_MEASURE_NOISE, LOW_ACCEL_ERROR_COV, lsm.magData.x);
+    }
+    if (!yMag.initialized)
+    {
+        yMag.init(LOW_ACCEL_PROCESS_NOISE, LOW_ACCEL_MEASURE_NOISE, LOW_ACCEL_ERROR_COV, lsm.magData.y);
+    }
+    if (!zMag.initialized)
+    {
+        zMag.init(LOW_ACCEL_PROCESS_NOISE, LOW_ACCEL_MEASURE_NOISE, LOW_ACCEL_ERROR_COV, lsm.magData.z);
+    }
+    if (!orientation.initialized)
+    {
+        orientation.init(LOW_ACCEL_PROCESS_NOISE, LOW_ACCEL_MEASURE_NOISE, LOW_ACCEL_ERROR_COV, lsm.magData.orientation);
+    }
+    lxForce.update(lsm.accelData.x);
+    lyForce.update(lsm.accelData.y);
+    lzForce.update(lsm.accelData.z);
+    xMag.update(lsm.magData.x);
+    yMag.update(lsm.magData.y);
+    zMag.update(lsm.magData.z);
+    orientation.update(lsm.magData.orientation);
 }
 
 /**
@@ -592,6 +648,21 @@ void logStatus()
 	char yf[32];
 	dtostrf(yForce.getValue(), 4, 2, yf);
 
+	char lxf[32];
+	dtostrf(lxForce.getValue(), 4, 2, lxf);
+	char lyf[32];
+	dtostrf(lyForce.getValue(), 4, 2, lyf);
+	char lzf[32];
+	dtostrf(lzForce.getValue(), 4, 2, lzf);
+	char xm[32];
+	dtostrf(xMag.getValue(), 4, 2, xm);
+	char ym[32];
+	dtostrf(yMag.getValue(), 4, 2, ym);
+	char zm[32];
+	dtostrf(zMag.getValue(), 4, 2, zm);
+	char ori[32];
+	dtostrf(orientation.getValue(), 4, 2, ori);
+
 	char xr[32];
 	dtostrf(xRotation.getValue(), 4, 2, xr);
 	char yr[32];
@@ -599,20 +670,33 @@ void logStatus()
 	char zr[32];
 	dtostrf(zRotation.getValue(), 4, 2, zr);
 
-	String printBuffer = "S:";
-	printBuffer += mode; printBuffer += ",";
+	String printBuffer = "";
+
+	if (printCount % PRINT_HEADER_INTERVAL)
+    {
+        printBuffer += "[m,t,alt,xF,yF,lxF,lyF,lzF,xR,yR,zR,xm,ym,zm,or,tm,pr,fx]\r\n";
+    }
+	printBuffer += '{';
+	printBuffer += mode; printBuffer += ',';
 	printBuffer += millis(); printBuffer += ',';
-	printBuffer += alt; printBuffer += "m,";
-	printBuffer += xf; printBuffer += "x,";
+	printBuffer += alt; printBuffer += ',';
+	printBuffer += xf; printBuffer += ',';
 	//	printBuffer += '['; printBuffer += xf; printBuffer += "x],";
-	printBuffer += yf; printBuffer += "y,";
+	printBuffer += yf; printBuffer += ',';
 	//	printBuffer += '['; printBuffer += yf; printBuffer += "y],";
-	printBuffer += xr; printBuffer += "x,";
-	printBuffer += yr; printBuffer += "y,";
-	printBuffer += zr; printBuffer += "z,";
-	printBuffer += tem; printBuffer += "C,";
-	printBuffer += prs; printBuffer += "pa,";
-	printBuffer += (int)GPS.fix; printBuffer += ";";
+	printBuffer += lxf; printBuffer += ',';
+	printBuffer += lyf; printBuffer += ',';
+	printBuffer += lzf; printBuffer += ',';
+	printBuffer += xr; printBuffer += ',';
+	printBuffer += yr; printBuffer += ',';
+	printBuffer += zr; printBuffer += ',';
+	printBuffer += xm; printBuffer += ',';
+	printBuffer += ym; printBuffer += ',';
+	printBuffer += zm; printBuffer += ',';
+	printBuffer += ori; printBuffer += ',';
+	printBuffer += tem; printBuffer += ',';
+	printBuffer += prs; printBuffer += ',';
+	printBuffer += (int)GPS.fix; printBuffer += '}';
 
 	if (GPS.fix)
 	{
@@ -664,6 +748,7 @@ void logStatus()
 		logFile.println(printBuffer);
 		logFile.flush();
 	}
+	printCount++;
 }
 
 /**

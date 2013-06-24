@@ -22,6 +22,7 @@
 #define HIGH_ACCEL_INTERVAL_FAST 1
 #define LOW_ACCEL_INTERVAL_SLOW 1000
 #define LOW_ACCEL_INTERVAL_FAST 500
+#define PRINT_HEADER_INTERVAL 50
 
 #define DEFAULT_ASCENT_THRESHOLD 50      // in distance from ACCEL_[X/Y]_CENTER where center is 1G
 #define DEFAULT_APOGEE_THRESHOLD 10      // in distance from ACCEL_[X/Y]_CENTER where center is 1G
@@ -29,7 +30,7 @@
 #define DEFAULT_MAIN_ALTITUDE 300        // in meters (added to deck altitude)
 #define DEFAULT_SEALEVEL_PRESSURE 101321 // in pascals, 101325
 
-#define MODE_ERROR -1
+#define MODE_ERROR 999
 #define MODE_STARTUP 0
 #define MODE_READY 1
 #define MODE_ASCENT 2
