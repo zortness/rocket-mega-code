@@ -10,6 +10,8 @@
 #define SENSORS_DPS_TO_RADS (0.017453293F)
 #define ACCEL_X_CENTER 500
 #define ACCEL_Y_CENTER 500
+#define RELAY_1_PIN 42
+#define RELAY_2_PIN 43
 
 // delays, these are NOT in milliseconds, they are in loop cycles!
 #define LOG_INTERVAL_SLOW 2000
@@ -28,7 +30,7 @@
 #define DEFAULT_APOGEE_THRESHOLD 10      // in distance from ACCEL_[X/Y]_CENTER where center is 1G
 #define DEFAULT_TOUCHDOWN_THRESHOLD 2	 // in distance from ACCEL_[X/Y]_CENTER where center is 1G
 #define DEFAULT_MAIN_ALTITUDE 300        // in meters (added to deck altitude)
-#define DEFAULT_SEALEVEL_PRESSURE 101321 // in pascals, 101325
+#define DEFAULT_SEALEVEL_PRESSURE 1013.21 // in h pascals, 101325
 
 #define MODE_ERROR 999
 #define MODE_STARTUP 0
@@ -58,6 +60,26 @@
 #define GYRO_PROCESS_NOISE 0.20001
 #define GYRO_MEASURE_NOISE 4.0001
 #define GYRO_ERROR_COV 25.0
+
+// 168 and 328 Arduinos (5v)
+#if defined(__AVR_ATmega168__) ||defined(__AVR_ATmega168P__) ||defined(__AVR_ATmega328P__)
+  #define CHIPSET ATmega_168_168P_328P
+  #define ACCEL_X_PIN A0
+  #define ACCEL_Y_PIN A1
+
+// Mega 1280 & 2560 (5v)
+#elif defined(__AVR_ATmega1280__) || defined(__AVR_ATmega2560__)
+  #define CHIPSET ATmega_1280_2560
+  #define ACCEL_X_PIN A0
+  #define ACCEL_Y_PIN A1
+
+// Due and others (3v)
+#else
+  #define CHIPSET unknown
+  #define ACCEL_X_PIN A2
+  #define ACCEL_Y_PIN A3
+
+#endif
 
 
 #endif // ROCKETMEGACONSTANTS_H_INCLUDED

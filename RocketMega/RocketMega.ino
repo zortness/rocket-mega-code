@@ -29,6 +29,7 @@ THE SOFTWARE.
 #include <SoftwareSerial.h>
 #include <Adafruit_GPS.h>
 #include <SD.h>
+#include <Adafruit_Sensor.h>
 #include <Adafruit_L3GD20.h>
 #include <Wire.h>
 #include <Adafruit_BMP085.h>
@@ -68,8 +69,10 @@ String buffer1 = "";
 boolean logSd = false;
 boolean logRawGps = true;
 Adafruit_L3GD20 gyro;
-Adafruit_BMP085 bmp;
-Adafruit_LSM303 lsm;
+Adafruit_BMP085 bmp = Adafruit_BMP085(10085);
+//Adafruit_LSM303 lsm;
+Adafruit_LSM303_Mag mag = Adafruit_LSM303_Mag(12345);
+Adafruit_LSM303_Accel accel = Adafruit_LSM303_Accel(54321);
 float sealevelPressure = DEFAULT_SEALEVEL_PRESSURE;
 float startingAltitude = 0;
 float maxAltitude = 0;
@@ -87,8 +90,8 @@ float maxTemperature = 0;
 float minPressure = DEFAULT_SEALEVEL_PRESSURE; // we set this to the first reading anyway, but just to be safe
 float maxPressure = 0;
 
-int xPin = A0;
-int yPin = A1;
+int xPin = ACCEL_X_PIN;
+int yPin = ACCEL_Y_PIN;
 boolean ledOn = false;
 uint32_t counter = 0;
 uint32_t printCount = 0;
@@ -119,6 +122,8 @@ KalmanSingleState orientation;
 void setup()
 {
 	pinMode(LED_PIN, OUTPUT);
+	pinMode(RELAY_1_PIN, OUTPUT);
+	pinMode(RELAY_2_PIN, OUTPUT);
 	pinMode(SD_CHIP_SELECT, OUTPUT);
 	Serial.begin(SERIAL_BAUD);
 
@@ -167,9 +172,11 @@ void setup()
         readAccel();
         delay(100);
     }
+    Serial.print("x:"); Serial.print(xForce.getValue());
+    Serial.print(", y:"); Serial.println(yForce.getValue());
 
     Serial.println("Setting up Altimeter...");
-	if (!bmp.begin(BMP085_ULTRALOWPOWER))
+	if (!bmp.begin(BMP085_MODE_STANDARD))
 	{
 		Serial.println("Unable to initialize altimeter");
 		error(5);
@@ -181,11 +188,39 @@ void setup()
     }
 	startingAltitude = altitude.getValue();
 	minPressure = pressure.getValue();
-	Serial.print("Starting altitude initially set at ");
-	Serial.print(startingAltitude);
-	Serial.println("m...");
+	Serial.print("Starting altitude initially set at "); Serial.print(startingAltitude); Serial.println("m...");
+	Serial.print("Starting temperature: "); Serial.print(temperature.getValue()); Serial.println('C');
+	Serial.print("Starting pressure: "); Serial.print(pressure.getValue()); Serial.println("hPa");
 
-	Serial.println("Setting up Gyro...");
+	Serial.println("Setting up Low-G Accelerometer...");
+	if (!mag.begin())
+    {
+        Serial.println("Unable to initialize Magnetometer");
+		error(6);
+    }
+    if (!accel.begin())
+    {
+        Serial.println("Unable to initialize Low-G Accelerometer");
+		error(6);
+    }
+    /*if (!lsm.begin())
+    {
+        Serial.println("Unable to initialize Low-G Accelerometer");
+		error(6);
+    }*/
+    for (int i = 0; i < 5; i++)
+    {
+        readLowAccel();
+        delay(100);
+    }
+    Serial.print("lx:"); Serial.print(lxForce.getValue());
+    Serial.print(", ly:"); Serial.print(lyForce.getValue());
+    Serial.print(", lz:"); Serial.println(lzForce.getValue());
+    Serial.print("xm:"); Serial.print(xMag.getValue());
+    Serial.print(", ym:"); Serial.print(yMag.getValue());
+    Serial.print(", zm:"); Serial.println(zMag.getValue());
+
+	/*Serial.println("Setting up Gyro...");
 	if (!gyro.begin())
 	{
 		Serial.println("Unable to initialize gyro");
@@ -196,19 +231,10 @@ void setup()
         readGyro();
         delay(100);
     }
-
-    Serial.println("Setting up Low-G Accelerometer...");
-    if (!lsm.begin())
-    {
-        Serial.println("Unable to initialize altimeter");
-		error(6);
-    }
-    for (int i = 0; i < 5; i++)
-    {
-        readLowAccel();
-        delay(100);
-    }
-
+    Serial.print("xr:"); Serial.print(xRotation.getValue());
+    Serial.print(", yr:"); Serial.print(yRotation.getValue());
+    Serial.print(", zr:"); Serial.println(zRotation.getValue());
+*/
 	Serial.println("Setting up GPS...");
 	Serial1.begin(GPS_BAUD);
 	GPS.sendCommand(PMTK_SET_NMEA_OUTPUT_RMCGGA);
@@ -244,7 +270,7 @@ void loop ()
 	}
 	if (counter % gyroInterval == 0)
 	{
-		readGyro();
+		//readGyro();
 	}
 	if (counter % lowAccelInterval == 0)
     {
@@ -314,10 +340,14 @@ void readAccel()
 */
 void readAlt()
 {
-	// these will need to be cleaned up with a Kalman filter
-	float rawTemperature = bmp.readTemperature();
-	float rawPressure = bmp.readPressure();
-	float rawAltitude = 44330 * (1.0 - pow(rawPressure / sealevelPressure , 0.1903));
+	sensors_event_t event;
+	bmp.getEvent(&event);
+	float rawPressure = event.pressure;
+	float rawTemperature;
+	bmp.getTemperature(&rawTemperature);
+	float rawAltitude = bmp.pressureToAltitude(sealevelPressure, rawPressure, rawTemperature);
+	//Serial.print("rawAltitude: "); Serial.println(rawAltitude);
+	//float rawAltitude = 44330 * (1.0 - pow(rawPressure / sealevelPressure , 0.1903));
 
 	if (!altitude.initialized)
     {
@@ -389,42 +419,42 @@ void readGyro()
 */
 void readLowAccel()
 {
-    lsm.read();
+    //lsm.read();
+    sensors_event_t event;
+    accel.getEvent(&event);
+
     if (!lxForce.initialized)
     {
-        lxForce.init(LOW_ACCEL_PROCESS_NOISE, LOW_ACCEL_MEASURE_NOISE, LOW_ACCEL_ERROR_COV, lsm.accelData.x);
+        lxForce.init(LOW_ACCEL_PROCESS_NOISE, LOW_ACCEL_MEASURE_NOISE, LOW_ACCEL_ERROR_COV, event.acceleration.x);
     }
     if (!lyForce.initialized)
     {
-        lyForce.init(LOW_ACCEL_PROCESS_NOISE, LOW_ACCEL_MEASURE_NOISE, LOW_ACCEL_ERROR_COV, lsm.accelData.y);
+        lyForce.init(LOW_ACCEL_PROCESS_NOISE, LOW_ACCEL_MEASURE_NOISE, LOW_ACCEL_ERROR_COV, event.acceleration.y);
     }
     if (!lzForce.initialized)
     {
-        lzForce.init(LOW_ACCEL_PROCESS_NOISE, LOW_ACCEL_MEASURE_NOISE, LOW_ACCEL_ERROR_COV, lsm.accelData.z);
+        lzForce.init(LOW_ACCEL_PROCESS_NOISE, LOW_ACCEL_MEASURE_NOISE, LOW_ACCEL_ERROR_COV, event.acceleration.z);
     }
+    lxForce.update(event.acceleration.x);
+    lyForce.update(event.acceleration.y);
+    lzForce.update(event.acceleration.z);
+
+    mag.getEvent(&event);
     if (!xMag.initialized)
     {
-        xMag.init(LOW_ACCEL_PROCESS_NOISE, LOW_ACCEL_MEASURE_NOISE, LOW_ACCEL_ERROR_COV, lsm.magData.x);
+        xMag.init(LOW_ACCEL_PROCESS_NOISE, LOW_ACCEL_MEASURE_NOISE, LOW_ACCEL_ERROR_COV, event.magnetic.x);
     }
     if (!yMag.initialized)
     {
-        yMag.init(LOW_ACCEL_PROCESS_NOISE, LOW_ACCEL_MEASURE_NOISE, LOW_ACCEL_ERROR_COV, lsm.magData.y);
+        yMag.init(LOW_ACCEL_PROCESS_NOISE, LOW_ACCEL_MEASURE_NOISE, LOW_ACCEL_ERROR_COV, event.magnetic.y);
     }
     if (!zMag.initialized)
     {
-        zMag.init(LOW_ACCEL_PROCESS_NOISE, LOW_ACCEL_MEASURE_NOISE, LOW_ACCEL_ERROR_COV, lsm.magData.z);
+        zMag.init(LOW_ACCEL_PROCESS_NOISE, LOW_ACCEL_MEASURE_NOISE, LOW_ACCEL_ERROR_COV, event.magnetic.z);
     }
-    if (!orientation.initialized)
-    {
-        orientation.init(LOW_ACCEL_PROCESS_NOISE, LOW_ACCEL_MEASURE_NOISE, LOW_ACCEL_ERROR_COV, lsm.magData.orientation);
-    }
-    lxForce.update(lsm.accelData.x);
-    lyForce.update(lsm.accelData.y);
-    lzForce.update(lsm.accelData.z);
-    xMag.update(lsm.magData.x);
-    yMag.update(lsm.magData.y);
-    zMag.update(lsm.magData.z);
-    orientation.update(lsm.magData.orientation);
+    xMag.update(event.magnetic.x);
+    yMag.update(event.magnetic.y);
+    zMag.update(event.magnetic.z);
 }
 
 /**
@@ -505,7 +535,10 @@ void modeAscent()
 void modeApogee()
 {
 	// wait for altitude to start dropping?
-	// TODO: set Drogue Relay toggle to HIGH
+	// TODO: possibly make this not lock up reading sensors
+	digitalWrite(RELAY_2_PIN, HIGH);
+	delay(1000);
+	digitalWrite(RELAY_2_PIN, LOW);
 	mode = MODE_DESCENT;
 }
 
@@ -526,7 +559,10 @@ void modeDescent()
 			logFile.println("=========== Main Deploy Altitude Detected! ============");
 			logFile.flush();
 		}
-		// TODO: set Main Relay toggle to HIGH
+		// TODO: possibly make this not lock up reading sensors
+		digitalWrite(RELAY_1_PIN, HIGH);
+        delay(1000);
+        digitalWrite(RELAY_1_PIN, LOW);
 	}
 }
 
@@ -672,7 +708,7 @@ void logStatus()
 
 	String printBuffer = "";
 
-	if (printCount % PRINT_HEADER_INTERVAL)
+	if (printCount % PRINT_HEADER_INTERVAL == 0)
     {
         printBuffer += "[m,t,alt,xF,yF,lxF,lyF,lzF,xR,yR,zR,xm,ym,zm,or,tm,pr,fx]\r\n";
     }
