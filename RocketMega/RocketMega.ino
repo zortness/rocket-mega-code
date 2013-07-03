@@ -70,7 +70,6 @@ boolean logSd = false;
 boolean logRawGps = true;
 Adafruit_L3GD20 gyro;
 Adafruit_BMP085 bmp = Adafruit_BMP085(10085);
-//Adafruit_LSM303 lsm;
 Adafruit_LSM303_Mag mag = Adafruit_LSM303_Mag(12345);
 Adafruit_LSM303_Accel accel = Adafruit_LSM303_Accel(54321);
 float sealevelPressure = DEFAULT_SEALEVEL_PRESSURE;
@@ -203,11 +202,6 @@ void setup()
         Serial.println("Unable to initialize Low-G Accelerometer");
 		error(6);
     }
-    /*if (!lsm.begin())
-    {
-        Serial.println("Unable to initialize Low-G Accelerometer");
-		error(6);
-    }*/
     for (int i = 0; i < 5; i++)
     {
         readLowAccel();
@@ -220,7 +214,7 @@ void setup()
     Serial.print(", ym:"); Serial.print(yMag.getValue());
     Serial.print(", zm:"); Serial.println(zMag.getValue());
 
-	/*Serial.println("Setting up Gyro...");
+	Serial.println("Setting up Gyro...");
 	if (!gyro.begin())
 	{
 		Serial.println("Unable to initialize gyro");
@@ -234,7 +228,7 @@ void setup()
     Serial.print("xr:"); Serial.print(xRotation.getValue());
     Serial.print(", yr:"); Serial.print(yRotation.getValue());
     Serial.print(", zr:"); Serial.println(zRotation.getValue());
-*/
+
 	Serial.println("Setting up GPS...");
 	Serial1.begin(GPS_BAUD);
 	GPS.sendCommand(PMTK_SET_NMEA_OUTPUT_RMCGGA);
@@ -270,7 +264,7 @@ void loop ()
 	}
 	if (counter % gyroInterval == 0)
 	{
-		//readGyro();
+		readGyro();
 	}
 	if (counter % lowAccelInterval == 0)
     {
@@ -419,7 +413,6 @@ void readGyro()
 */
 void readLowAccel()
 {
-    //lsm.read();
     sensors_event_t event;
     accel.getEvent(&event);
 
@@ -513,7 +506,6 @@ void modeAscent()
 	// midpoint is 500 +/-50
 	// check altimeter for drops?
 	// switch to apogee mode
-	mode = MODE_APOGEE;
 
 	if( xForce.getValue() < apogeeThreshold
 		&& yForce.getValue() < apogeeThreshold )
@@ -540,6 +532,12 @@ void modeApogee()
 	delay(1000);
 	digitalWrite(RELAY_2_PIN, LOW);
 	mode = MODE_DESCENT;
+	Serial.println("=========== Descending ============");
+	if (logSd)
+    {
+        logFile.println("=========== Descending ============");
+        logFile.flush();
+    }
 }
 
 /**

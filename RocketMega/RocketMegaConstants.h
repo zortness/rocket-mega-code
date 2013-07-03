@@ -64,20 +64,20 @@
 // 168 and 328 Arduinos (5v)
 #if defined(__AVR_ATmega168__) ||defined(__AVR_ATmega168P__) ||defined(__AVR_ATmega328P__)
   #define CHIPSET ATmega_168_168P_328P
-  #define ACCEL_X_PIN A0
-  #define ACCEL_Y_PIN A1
+  #define ACCEL_X_PIN A2
+  #define ACCEL_Y_PIN A3
 
 // Mega 1280 & 2560 (5v)
 #elif defined(__AVR_ATmega1280__) || defined(__AVR_ATmega2560__)
   #define CHIPSET ATmega_1280_2560
-  #define ACCEL_X_PIN A0
-  #define ACCEL_Y_PIN A1
+  #define ACCEL_X_PIN A2
+  #define ACCEL_Y_PIN A3
 
 // Due and others (3v)
 #else
   #define CHIPSET unknown
-  #define ACCEL_X_PIN A2
-  #define ACCEL_Y_PIN A3
+  #define ACCEL_X_PIN A0
+  #define ACCEL_Y_PIN A1
 
 #endif
 
