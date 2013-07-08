@@ -53,6 +53,11 @@ void modeApogee();
 void modeDescent();
 void modeDescent2();
 void modeTouchdown();
+void deployMain();
+void deployDrogue();
+void modePause();
+void replay();
+void startReplay(String fileName);
 
 // variables
 uint8_t mode = MODE_STARTUP;
@@ -89,6 +94,10 @@ float maxTemperature = 0;
 float minPressure = DEFAULT_SEALEVEL_PRESSURE; // we set this to the first reading anyway, but just to be safe
 float maxPressure = 0;
 
+// used for tracking times that relays are activated
+unsigned long drogueDeployStart = 0;
+unsigned long mainDeployStart = 0;
+
 int xPin = ACCEL_X_PIN;
 int yPin = ACCEL_Y_PIN;
 boolean ledOn = false;
@@ -111,6 +120,14 @@ KalmanSingleState xMag;
 KalmanSingleState yMag;
 KalmanSingleState zMag;
 KalmanSingleState orientation;
+
+float latitude = 0;
+float longitude = 0;
+
+// replay settings
+bool inReplay = false;
+File replayFile;
+unsigned long replayTimeOffset = 0;
 
 /**
 * Arduino setup.
@@ -253,22 +270,30 @@ void setup()
 */
 void loop ()
 {
-	// read accelerometer (every loop?)
-	if (counter % highAccelInterval == 0)
+    if (inReplay)
     {
-        readAccel();
+        // recorded sensor data
+        replay();
     }
-	if (counter % altInterval == 0)
-	{
-		readAlt();
-	}
-	if (counter % gyroInterval == 0)
-	{
-		readGyro();
-	}
-	if (counter % lowAccelInterval == 0)
+    else if (mode != MODE_PAUSE)
     {
-        readLowAccel();
+        // live sensor data
+        if (counter % highAccelInterval == 0)
+        {
+            readAccel();
+        }
+        if (counter % altInterval == 0)
+        {
+            readAlt();
+        }
+        if (counter % gyroInterval == 0)
+        {
+            readGyro();
+        }
+        if (counter % lowAccelInterval == 0)
+        {
+            readLowAccel();
+        }
     }
 
 	// determine if we need to change state
@@ -280,10 +305,24 @@ void loop ()
         case MODE_DESCENT: modeDescent(); break;
         case MODE_DESCENT2: modeDescent2(); break;
         case MODE_TOUCHDOWN: modeTouchdown(); break;
+        case MODE_PAUSE: modePause(); break;
 	}
 
+	// check relays
+	unsigned long t = millis();
+	if (drogueDeployStart > 0 && (drogueDeployStart + RELAY_ON_TIME) < t)
+	{
+	    digitalWrite(RELAY_2_PIN, LOW);
+	    drogueDeployStart = 0;
+	}
+	if (mainDeployStart > 0 && (mainDeployStart + RELAY_ON_TIME) < t)
+    {
+        digitalWrite(RELAY_1_PIN, LOW);
+        mainDeployStart = 0;
+    }
+
 	// handle serial output on interval
-	if (counter % logInterval == 0)
+	if (mode != MODE_PAUSE && counter % logInterval == 0)
 	{
 		logStatus();
 		if (ledOn)
@@ -298,6 +337,129 @@ void loop ()
 		}
 	}
 	counter++;
+}
+
+/**
+* This is used to read and replay sensor data from a log file for testing configuration.
+*/
+void replay()
+{
+    if (replayFile && replayFile.available())
+    {
+        // read current line from the opened file
+        String line = replayFile.readStringUntil(10);
+        if (line.startsWith("{"))
+        {
+            // current time
+            unsigned long t = millis() - replayTimeOffset;
+            unsigned long replayTime = 0;
+            unsigned int sz = line.length();
+            char buf[128];
+            char lineBuf[sz];
+            line.toCharArray(lineBuf, sz, 0);
+            // move data into value holders
+            // {m,t,alt,xF,yF,lxF,lyF,lzF,xR,yR,zR,xm,ym,zm,or,tm,pr,fix,lat,lon,spd,ang,glt,sat,dt}
+            //  0 1 2   3  4  5   6   7   8  9  10 11 12 13 14 15 16 17  18  19  20  21  22  23  24
+            unsigned int bufIndex = 0;
+            unsigned int valIndex = 0;
+
+            for (int i = 0; i < sz; i++)
+            {
+                if (lineBuf[i] == '{')
+                {
+                    // ignore
+                }
+                else if (lineBuf[i] == ',' || lineBuf[i] == '}')
+                {
+                    // end of value
+                    buf[bufIndex] = '\0';
+                    switch(valIndex)
+                    {
+                        // ignore mode
+                        case 1:
+                            replayTime = atoi(buf);
+                            if (replayTime > t)
+                            {
+                                // wait for our clock to catch up
+                                // this assumes that all log lines are in time order
+                                delay(replayTime - t);
+                            }
+                            break;
+                        case 2: altitude.x = atof(buf); break;
+                        case 3: xForce.x = atof(buf); break;
+                        case 4: yForce.x = atof(buf); break;
+                        case 5: lxForce.x = atof(buf); break;
+                        case 6: lyForce.x = atof(buf); break;
+                        case 7: lzForce.x = atof(buf); break;
+                        case 8: xRotation.x = atof(buf); break;
+                        case 9: yRotation.x = atof(buf); break;
+                        case 10: zRotation.x = atof(buf); break;
+                        case 11: xMag.x = atof(buf); break;
+                        case 12: yMag.x = atof(buf); break;
+                        case 13: zMag.x = atof(buf); break;
+                        case 14: orientation.x = atof(buf); break;
+                        case 15: temperature.x = atof(buf); break;
+                        case 16: pressure.x = atof(buf); break;
+                        case 17: GPS.fix = atoi(buf); break;
+                        case 18: latitude = atof(buf); break;
+                        case 19: longitude = atof(buf); break;
+                        case 20: GPS.speed = atof(buf); break;
+                        case 21: GPS.angle = atof(buf); break;
+                        case 22: GPS.altitude = atof(buf); break;
+                        case 23: GPS.satellites = atoi(buf); break;
+                        // ignore GPS date for now
+                    }
+                    valIndex ++;
+                    bufIndex = 0;
+                }
+                else
+                {
+                    // value data, copy to line buf?
+                    buf[bufIndex] = lineBuf[i];
+                    bufIndex++;
+                }
+            }
+        }
+    }
+    else
+    {
+        replayFile.close();
+        Serial.println("====== REPLAY ENDED, Pausing ======");
+        mode = MODE_PAUSE;
+        inReplay = false;
+    }
+
+    // if line time is > our time, delay millis
+    // else play line now
+
+    // if no file or data, end replay
+}
+
+/**
+* Used to attempt to start a replay.
+*/
+void startReplay(String fileName)
+{
+    // open specified file
+    char buf[fileName.length()];
+    fileName.toCharArray(buf, fileName.length(), 0);
+    replayFile = SD.open(buf);
+    if (replayFile)
+    {
+        Serial.println("========== Starting Replay! ============");
+        Serial.print("file: "); Serial.println(buf);
+        replayTimeOffset = millis();
+        mode = MODE_READY;
+        inReplay = true;
+    }
+    else
+    {
+        Serial.println("!!!! ERROR !!!!");
+        Serial.print("Unable to read log file: "); Serial.println(fileName);
+        Serial.println("===== Pausing =====");
+        mode = MODE_PAUSE;
+        inReplay = false;
+    }
 }
 
 /**
@@ -527,10 +689,7 @@ void modeAscent()
 void modeApogee()
 {
 	// wait for altitude to start dropping?
-	// TODO: possibly make this not lock up reading sensors
-	digitalWrite(RELAY_2_PIN, HIGH);
-	delay(1000);
-	digitalWrite(RELAY_2_PIN, LOW);
+	deployDrogue();
 	mode = MODE_DESCENT;
 	Serial.println("=========== Descending ============");
 	if (logSd)
@@ -557,10 +716,7 @@ void modeDescent()
 			logFile.println("=========== Main Deploy Altitude Detected! ============");
 			logFile.flush();
 		}
-		// TODO: possibly make this not lock up reading sensors
-		digitalWrite(RELAY_1_PIN, HIGH);
-        delay(1000);
-        digitalWrite(RELAY_1_PIN, LOW);
+		deployMain();
 	}
 }
 
@@ -600,6 +756,49 @@ void modeTouchdown()
 }
 
 /**
+* Just hang around a bit.
+*/
+void modePause()
+{
+    delay(1000);
+}
+
+
+/**
+* Deploy drogue chute
+*/
+void deployDrogue()
+{
+    digitalWrite(RELAY_2_PIN, HIGH);
+    drogueDeployStart = millis();
+    Serial.println("=========== Deploying Drogue ============");
+	if (logSd)
+    {
+        logFile.println("=========== Deploying Drogue ============");
+        logFile.flush();
+    }
+	//delay(1000);
+	//digitalWrite(RELAY_2_PIN, LOW);
+}
+
+/**
+* Deploy main chute
+*/
+void deployMain()
+{
+    digitalWrite(RELAY_1_PIN, HIGH);
+    mainDeployStart = millis();
+    Serial.println("=========== Deploying Main ============");
+	if (logSd)
+    {
+        logFile.println("=========== Deploying Main ============");
+        logFile.flush();
+    }
+    //delay(1000);
+    //digitalWrite(RELAY_1_PIN, LOW);
+}
+
+/**
 * Await any command input on the main serial line (from the XBee or console)
 */
 void serialEvent()
@@ -611,8 +810,45 @@ void serialEvent()
 		ser = Serial.read();
 		if (ser == 10 || ser == ';') // return
 		{
-			Serial.print("line: ");
-			Serial.println(buffer);
+		    if (buffer.startsWith("deploy drogue"))
+            {
+                deployDrogue();
+            }
+            else if (buffer.startsWith("deploy main"))
+            {
+                deployMain();
+            }
+            else if (buffer.startsWith("deploy all"))
+            {
+                deployDrogue();
+                deployMain();
+            }
+            else if (buffer.startsWith("set mode") && buffer.length() > 9)
+            {
+                const char tmp = buffer.charAt(9);
+                mode = atoi(&tmp);
+                Serial.print("===== MODE set to "); Serial.print(mode); Serial.println(" ===========");
+            }
+            else if (buffer.startsWith("pause"))
+            {
+                mode = MODE_PAUSE;
+                Serial.print("===== PAUSED =======");
+                Serial.print("Use 'resume', 'unpause', or 'set mode 1' to resume");
+            }
+            else if (buffer.startsWith("resume") || buffer.startsWith("unpause"))
+            {
+                mode = MODE_READY;
+                Serial.print("===== RESUMING =======");
+            }
+            else if (buffer.startsWith("replay ") && buffer.length() > 6)
+            {
+                startReplay(buffer.substring(7, buffer.length()));
+            }
+            else
+            {
+                Serial.print("unknown command: ");
+                Serial.println(buffer);
+            }
 			buffer = "";
 		}
 		else
@@ -637,25 +873,49 @@ void serialEvent1()
 		}
 		if (ser == 10)
 		{
-			//Serial.println(buffer1);
-			uint8_t bufferSize = buffer1.length();
-			char tmpBuffer[bufferSize];
-			buffer1.toCharArray(tmpBuffer,buffer1.length());
-			if (logSd && logRawGps)
-			{
-				// immediately log raw GPS data to file
-				if (bufferSize > logFile.print(buffer1))
-				{
-					Serial.println("ERROR: Failed to write to SD card.");
-					logSd = false;
-				}
-				logFile.flush();
-			}
-			if (!buffer1.startsWith("$P") && !GPS.parse(tmpBuffer) && logSd)
-			{
-				logFile.println("GPS_parse_error");
-				logFile.flush();
-			}
+			// ignore in replay mode
+			if (!inReplay)
+            {
+                uint8_t bufferSize = buffer1.length();
+                char tmpBuffer[bufferSize];
+                buffer1.toCharArray(tmpBuffer,buffer1.length());
+                if (logSd && logRawGps)
+                {
+                    // immediately log raw GPS data to file
+                    if (bufferSize > logFile.print(buffer1))
+                    {
+                        Serial.println("ERROR: Failed to write to SD card.");
+                        logSd = false;
+                    }
+                    logFile.flush();
+                }
+                if (!buffer1.startsWith("$P"))
+                {
+                    if (GPS.parse(tmpBuffer))
+                    {
+                        float latDeg = (int)GPS.latitude / 100;
+                        float latMin = fmod(GPS.latitude, 100.0);
+                        latitude = latDeg + (latMin / 60.0);
+                        if (GPS.lat == 'S' || GPS.lat == 's')
+                        {
+                            latitude *= -1.0;
+                        }
+
+                        float lonDeg = (int)GPS.longitude / 100;
+                        float lonMin = fmod(GPS.longitude, 100.0);
+                        longitude = lonDeg + (lonMin / 60.0);
+                        if (GPS.lon == 'W' || GPS.lon == 'w')
+                        {
+                            longitude *= -1.0;
+                        }
+                    }
+                    else if (logSd)
+                    {
+                        logFile.println("GPS_parse_error");
+                        logFile.flush();
+                    }
+                }
+            }
 			buffer1 = "";
 		}
 		else
@@ -681,6 +941,8 @@ void logStatus()
 	dtostrf(xForce.getValue(), 4, 2, xf);
 	char yf[32];
 	dtostrf(yForce.getValue(), 4, 2, yf);
+	//char zf[32];
+	//dtostrf(zForce.getValue(), 4, 2, zf);
 
 	char lxf[32];
 	dtostrf(lxForce.getValue(), 4, 2, lxf);
@@ -708,16 +970,15 @@ void logStatus()
 
 	if (printCount % PRINT_HEADER_INTERVAL == 0)
     {
-        printBuffer += "[m,t,alt,xF,yF,lxF,lyF,lzF,xR,yR,zR,xm,ym,zm,or,tm,pr,fx]\r\n";
+        printBuffer += "[m,t,alt,xF,yF,lxF,lyF,lzF,xR,yR,zR,xm,ym,zm,or,tm,pr,fix,lat,lon,spd,ang,glt,sat,dt]\r\n";
     }
 	printBuffer += '{';
 	printBuffer += mode; printBuffer += ',';
 	printBuffer += millis(); printBuffer += ',';
 	printBuffer += alt; printBuffer += ',';
 	printBuffer += xf; printBuffer += ',';
-	//	printBuffer += '['; printBuffer += xf; printBuffer += "x],";
 	printBuffer += yf; printBuffer += ',';
-	//	printBuffer += '['; printBuffer += yf; printBuffer += "y],";
+	//printBuffer += zf; printBuffer += ',';
 	printBuffer += lxf; printBuffer += ',';
 	printBuffer += lyf; printBuffer += ',';
 	printBuffer += lzf; printBuffer += ',';
@@ -734,26 +995,10 @@ void logStatus()
 
 	if (GPS.fix)
 	{
-		float latDeg = (int)GPS.latitude / 100;
-		float latMin = fmod(GPS.latitude, 100.0);
-		float realLat = latDeg + (latMin / 60.0);
-		if (GPS.lat == 'S' || GPS.lat == 's')
-		{
-			realLat *= -1.0;
-		}
-
-		float lonDeg = (int)GPS.longitude / 100;
-		float lonMin = fmod(GPS.longitude, 100.0);
-		float realLon = lonDeg + (lonMin / 60.0);
-		if (GPS.lon == 'W' || GPS.lon == 'w')
-		{
-			realLon *= -1.0;
-		}
-
 		char lat[32];
-		dtostrf(realLat, 10, 6, lat);
+		dtostrf(latitude, 10, 6, lat);
 		char lon[32];
-		dtostrf(realLon, 10, 6, lon);
+		dtostrf(longitude, 10, 6, lon);
 		char spd[32];
 		dtostrf(GPS.speed, 6, 2, spd);
 		char ang[32];
@@ -761,21 +1006,26 @@ void logStatus()
 		char galt[32];
 		dtostrf(GPS.altitude, 6, 2, galt);
 
-		printBuffer += "\r\nL:";
+		//printBuffer += "\r\nL:";
 		printBuffer += lat; printBuffer += GPS.lat; printBuffer += ',';
 		printBuffer += lon; printBuffer += GPS.lon; printBuffer += ',';
-		printBuffer += spd; printBuffer += "kn,";
-		printBuffer += ang; printBuffer += "dg,";
-		printBuffer += galt; printBuffer += "m,";
-		printBuffer += (int)GPS.satellites; printBuffer += "sat,";
+		printBuffer += spd; printBuffer += ','; //printBuffer += "kn,";
+		printBuffer += ang; printBuffer += ','; //printBuffer += "dg,";
+		printBuffer += galt; printBuffer += ','; //printBuffer += "m,";
+		printBuffer += (int)GPS.satellites; printBuffer += ','; //printBuffer += "sat,";
 		printBuffer += GPS.year; printBuffer += '-';
 		printBuffer += GPS.month; printBuffer += '-';
 		printBuffer += GPS.day; printBuffer += '_';
 		printBuffer += GPS.hour; printBuffer += ':';
 		printBuffer += GPS.minute; printBuffer += ':';
 		printBuffer += GPS.seconds; printBuffer += '.';
-		printBuffer += GPS.milliseconds; printBuffer += ';';
+		printBuffer += GPS.milliseconds; //printBuffer += ';';
 	}
+	else
+    {
+        printBuffer += ",,,,,,";
+    }
+	printBuffer += '}';
 	Serial.println(printBuffer);
 	if (logSd)
 	{

@@ -14,11 +14,11 @@ class KalmanSingleState
         double update(double measurement);
         double getValue();
         bool initialized;
+		double x;
     protected:
     private:
         double q;
         double r;
-        double x;
         double p;
         double k;
 };

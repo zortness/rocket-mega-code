@@ -12,9 +12,10 @@
 #define ACCEL_Y_CENTER 500
 #define RELAY_1_PIN 42
 #define RELAY_2_PIN 43
+#define RELAY_ON_TIME 1000 // in milliseconds
 
 // delays, these are NOT in milliseconds, they are in loop cycles!
-#define LOG_INTERVAL_SLOW 2000
+#define LOG_INTERVAL_SLOW 4000
 #define LOG_INTERVAL_FAST 1000
 #define ALTIMETER_INTERVAL_SLOW 1000
 #define ALTIMETER_INTERVAL_FAST 250
@@ -40,6 +41,7 @@
 #define MODE_DESCENT 4
 #define MODE_DESCENT2 5
 #define MODE_TOUCHDOWN 6
+#define MODE_PAUSE 7
 
 // kalman filter values
 #define HIGH_ACCEL_PROCESS_NOISE 0.20001
