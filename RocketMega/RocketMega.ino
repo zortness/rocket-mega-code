@@ -419,6 +419,11 @@ void replay()
                     bufIndex++;
                 }
             }
+            logInterval = 1;
+        }
+        else
+        {
+            logInterval = counter - 1;
         }
     }
     else
@@ -427,6 +432,7 @@ void replay()
         Serial.println("====== REPLAY ENDED, Pausing ======");
         mode = MODE_PAUSE;
         inReplay = false;
+        slowIntervals();
     }
 
     // if line time is > our time, delay millis
@@ -441,8 +447,8 @@ void replay()
 void startReplay(String fileName)
 {
     // open specified file
-    char buf[fileName.length()];
-    fileName.toCharArray(buf, fileName.length(), 0);
+    char buf[fileName.length() + 1];
+    fileName.toCharArray(buf, fileName.length() + 1, 0);
     replayFile = SD.open(buf);
     if (replayFile)
     {
@@ -451,11 +457,12 @@ void startReplay(String fileName)
         replayTimeOffset = millis();
         mode = MODE_READY;
         inReplay = true;
+        logInterval = 1;
     }
     else
     {
-        Serial.println("!!!! ERROR !!!!");
-        Serial.print("Unable to read log file: "); Serial.println(fileName);
+        Serial.println("!== ERROR ==!");
+        Serial.print("Unable to read log file: "); Serial.println(buf);
         Serial.println("===== Pausing =====");
         mode = MODE_PAUSE;
         inReplay = false;
@@ -991,7 +998,7 @@ void logStatus()
 	printBuffer += ori; printBuffer += ',';
 	printBuffer += tem; printBuffer += ',';
 	printBuffer += prs; printBuffer += ',';
-	printBuffer += (int)GPS.fix; printBuffer += '}';
+	printBuffer += (int)GPS.fix; //printBuffer += '}';
 
 	if (GPS.fix)
 	{
@@ -1007,8 +1014,9 @@ void logStatus()
 		dtostrf(GPS.altitude, 6, 2, galt);
 
 		//printBuffer += "\r\nL:";
-		printBuffer += lat; printBuffer += GPS.lat; printBuffer += ',';
-		printBuffer += lon; printBuffer += GPS.lon; printBuffer += ',';
+		printBuffer += ',';
+		printBuffer += lat; printBuffer += ',';
+		printBuffer += lon; printBuffer += ',';
 		printBuffer += spd; printBuffer += ','; //printBuffer += "kn,";
 		printBuffer += ang; printBuffer += ','; //printBuffer += "dg,";
 		printBuffer += galt; printBuffer += ','; //printBuffer += "m,";
