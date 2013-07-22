@@ -103,6 +103,7 @@ int yPin = ACCEL_Y_PIN;
 boolean ledOn = false;
 uint32_t counter = 0;
 uint32_t printCount = 0;
+boolean logRaw = true;
 
 // sensor values
 KalmanSingleState xForce;
@@ -937,41 +938,42 @@ void serialEvent1()
 */
 void logStatus()
 {
+    long t = millis();
 	char alt[32];
-	dtostrf(altitude.getValue(), 5, 2, alt);
+	dtostrf(altitude.x, 5, 2, alt);
 	char prs[32];
-	dtostrf(pressure.getValue(), 8, 2, prs);
+	dtostrf(pressure.x, 8, 2, prs);
 	char tem[32];
-	dtostrf(temperature.getValue(), 4, 2, tem);
+	dtostrf(temperature.x, 4, 2, tem);
 
 	char xf[32];
-	dtostrf(xForce.getValue(), 4, 2, xf);
+	dtostrf(xForce.x, 4, 2, xf);
 	char yf[32];
-	dtostrf(yForce.getValue(), 4, 2, yf);
+	dtostrf(yForce.x, 4, 2, yf);
 	//char zf[32];
 	//dtostrf(zForce.getValue(), 4, 2, zf);
 
 	char lxf[32];
-	dtostrf(lxForce.getValue(), 4, 2, lxf);
+	dtostrf(lxForce.x, 4, 2, lxf);
 	char lyf[32];
-	dtostrf(lyForce.getValue(), 4, 2, lyf);
+	dtostrf(lyForce.x, 4, 2, lyf);
 	char lzf[32];
-	dtostrf(lzForce.getValue(), 4, 2, lzf);
+	dtostrf(lzForce.x, 4, 2, lzf);
 	char xm[32];
-	dtostrf(xMag.getValue(), 4, 2, xm);
+	dtostrf(xMag.x, 4, 2, xm);
 	char ym[32];
-	dtostrf(yMag.getValue(), 4, 2, ym);
+	dtostrf(yMag.x, 4, 2, ym);
 	char zm[32];
-	dtostrf(zMag.getValue(), 4, 2, zm);
+	dtostrf(zMag.x, 4, 2, zm);
 	char ori[32];
-	dtostrf(orientation.getValue(), 4, 2, ori);
+	dtostrf(orientation.x, 4, 2, ori);
 
 	char xr[32];
-	dtostrf(xRotation.getValue(), 4, 2, xr);
+	dtostrf(xRotation.x, 4, 2, xr);
 	char yr[32];
-	dtostrf(yRotation.getValue(), 4, 2, yr);
+	dtostrf(yRotation.x, 4, 2, yr);
 	char zr[32];
-	dtostrf(zRotation.getValue(), 4, 2, zr);
+	dtostrf(zRotation.x, 4, 2, zr);
 
 	String printBuffer = "";
 
@@ -981,7 +983,7 @@ void logStatus()
     }
 	printBuffer += '{';
 	printBuffer += mode; printBuffer += ',';
-	printBuffer += millis(); printBuffer += ',';
+	printBuffer += t; printBuffer += ',';
 	printBuffer += alt; printBuffer += ',';
 	printBuffer += xf; printBuffer += ',';
 	printBuffer += yf; printBuffer += ',';
@@ -1034,6 +1036,69 @@ void logStatus()
         printBuffer += ",,,,,,";
     }
 	printBuffer += '}';
+
+	// raw values
+	if (logRaw)
+    {
+        printBuffer += "\r\nR{";
+        char ralt[32];
+        dtostrf(altitude.raw, 5, 2, ralt);
+        char rprs[32];
+        dtostrf(pressure.raw, 8, 2, rprs);
+        char rtem[32];
+        dtostrf(temperature.raw, 4, 2, rtem);
+
+        char rxf[32];
+        dtostrf(xForce.raw, 4, 2, rxf);
+        char ryf[32];
+        dtostrf(yForce.raw, 4, 2, ryf);
+        //char zf[32];
+        //dtostrf(zForce.getValue(), 4, 2, zf);
+
+        char rlxf[32];
+        dtostrf(lxForce.raw, 4, 2, rlxf);
+        char rlyf[32];
+        dtostrf(lyForce.raw, 4, 2, rlyf);
+        char rlzf[32];
+        dtostrf(lzForce.raw, 4, 2, rlzf);
+        char rxm[32];
+        dtostrf(xMag.raw, 4, 2, rxm);
+        char rym[32];
+        dtostrf(yMag.raw, 4, 2, rym);
+        char rzm[32];
+        dtostrf(zMag.raw, 4, 2, rzm);
+        char rori[32];
+        dtostrf(orientation.raw, 4, 2, rori);
+
+        char rxr[32];
+        dtostrf(xRotation.raw, 4, 2, rxr);
+        char ryr[32];
+        dtostrf(yRotation.raw, 4, 2, ryr);
+        char rzr[32];
+        dtostrf(zRotation.raw, 4, 2, rzr);
+
+        printBuffer += mode; printBuffer += ',';
+        printBuffer += t; printBuffer += ',';
+        printBuffer += ralt; printBuffer += ',';
+        printBuffer += rxf; printBuffer += ',';
+        printBuffer += ryf; printBuffer += ',';
+        //printBuffer += zf; printBuffer += ',';
+        printBuffer += rlxf; printBuffer += ',';
+        printBuffer += rlyf; printBuffer += ',';
+        printBuffer += rlzf; printBuffer += ',';
+        printBuffer += rxr; printBuffer += ',';
+        printBuffer += ryr; printBuffer += ',';
+        printBuffer += rzr; printBuffer += ',';
+        printBuffer += rxm; printBuffer += ',';
+        printBuffer += rym; printBuffer += ',';
+        printBuffer += rzm; printBuffer += ',';
+        printBuffer += rori; printBuffer += ',';
+        printBuffer += rtem; printBuffer += ',';
+        printBuffer += rprs;
+
+        printBuffer += '}';
+    }
+
 	Serial.println(printBuffer);
 	if (logSd)
 	{

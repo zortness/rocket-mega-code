@@ -24,6 +24,7 @@ void KalmanSingleState::init(double initQ, double initR, double initP, double in
     r = initR;
     p = initP;
     x = initValue;
+    raw = initValue;
     initialized = true;
 }
 
@@ -32,6 +33,7 @@ void KalmanSingleState::init(double initQ, double initR, double initP, double in
 */
 double KalmanSingleState::update(double measurement)
 {
+    raw = measurement;
     p = p + q;
     k = p / (p + r);
     x = x + k * (measurement - x);

@@ -15,6 +15,7 @@ class KalmanSingleState
         double getValue();
         bool initialized;
 		double x;
+		double raw;
     protected:
     private:
         double q;
