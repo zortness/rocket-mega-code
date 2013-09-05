@@ -1,0 +1,63 @@
+# depslib dependency file v1.0
+1377905466 source:c:\users\kurtis\projects\public\rocket-mega-code\board-test\board-test.ino
+	<Arduino.h>
+	<SoftwareSerial.h>
+	<Adafruit_GPS.h>
+	<SD.h>
+	<Adafruit_Sensor.h>
+	<Adafruit_L3GD20.h>
+	<Wire.h>
+	<Adafruit_BMP085.h>
+	<Adafruit_LSM303.h>
+	<KalmanSingleState.h>
+
+1362986950 c:\users\kurtis\downloads\codeblocks-arduino-20130428\codeblocks\arduino\hardware\arduino\cores\arduino\arduino.h
+	<stdlib.h>
+	<string.h>
+	<math.h>
+	<avr/pgmspace.h>
+	<avr/io.h>
+	<avr/interrupt.h>
+	"binary.h"
+	"WCharacter.h"
+	"WString.h"
+	"HardwareSerial.h"
+	"pins_arduino.h"
+
+1362986950 c:\users\kurtis\downloads\codeblocks-arduino-20130428\codeblocks\arduino\hardware\arduino\cores\arduino\binary.h
+
+1362986950 c:\users\kurtis\downloads\codeblocks-arduino-20130428\codeblocks\arduino\hardware\arduino\cores\arduino\wcharacter.h
+	<ctype.h>
+
+1362986950 c:\users\kurtis\downloads\codeblocks-arduino-20130428\codeblocks\arduino\hardware\arduino\cores\arduino\wstring.h
+	<stdlib.h>
+	<string.h>
+	<ctype.h>
+	<avr/pgmspace.h>
+
+1362986950 c:\users\kurtis\downloads\codeblocks-arduino-20130428\codeblocks\arduino\hardware\arduino\cores\arduino\hardwareserial.h
+	<inttypes.h>
+	"Stream.h"
+	"USBAPI.h"
+
+1362986950 c:\users\kurtis\downloads\codeblocks-arduino-20130428\codeblocks\arduino\hardware\arduino\cores\arduino\stream.h
+	<inttypes.h>
+	"Print.h"
+
+1362986950 c:\users\kurtis\downloads\codeblocks-arduino-20130428\codeblocks\arduino\hardware\arduino\cores\arduino\print.h
+	<inttypes.h>
+	<stdio.h>
+	"WString.h"
+	"Printable.h"
+
+1362986950 c:\users\kurtis\downloads\codeblocks-arduino-20130428\codeblocks\arduino\hardware\arduino\cores\arduino\printable.h
+	<new.h>
+
+1362986950 c:\users\kurtis\downloads\codeblocks-arduino-20130428\codeblocks\arduino\hardware\arduino\cores\arduino\new.h
+	<stdlib.h>
+
+1362986950 c:\users\kurtis\downloads\codeblocks-arduino-20130428\codeblocks\arduino\hardware\arduino\cores\arduino\usbapi.h
+
+1362986950 c:\users\kurtis\downloads\codeblocks-arduino-20130428\codeblocks\arduino\hardware\arduino\variants\mega\pins_arduino.h
+	<avr/pgmspace.h>
+

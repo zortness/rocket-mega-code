@@ -12,4 +12,8 @@ These projects make use of other open source Arduino libraries, so you may want 
 
 Projects
 --------
-* [RocketMega](https://github.com/zortness/rocket-mega-code/tree/master/RocketMega): A basic dual-deployment rocketry program for the Mega 2560
+* [board-test](https://github.com/zortness/rocket-mega-code/tree/master/board-test): Simple board test for the RocketMega R2 board
+* **UNFINISHED** [RocketMegaChibiAVR](https://github.com/zortness/rocket-mega-code/tree/master/RocketMegaChibiAVR): A dual-deployment rocketry program for the Mega 2560, built on ChibiOS
+* **UNFINISHED** [RocketMegaFIDO](https://github.com/zortness/rocket-mega-code/tree/master/RocketMegaFIDO): A Java program to run a FIDO groundstation
+* **DEPRICATED** [RocketMega](https://github.com/zortness/rocket-mega-code/tree/master/RocketMega): A basic dual-deployment rocketry program for the Mega 2560
+* **UNPROVEN** [KalmanSingleState](https://github.com/zortness/rocket-mega-code/tree/master/Libraries/KalmanSingleState): A simple single vector Kalman implementation, not used in newer projects
