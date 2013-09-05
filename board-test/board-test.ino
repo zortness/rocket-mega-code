@@ -64,7 +64,6 @@
 #include <Wire.h>
 #include <Adafruit_BMP085.h>
 #include <Adafruit_LSM303.h>
-#include <KalmanSingleState.h>
 
 
 HardwareSerial DebugSerial = DEBUG_SERIAL;
