@@ -7,7 +7,7 @@
 */
 
 #define __DEBUG true
-#define __RAW false
+#define __RAW true
 #define __TELEM_RAW_GPS false
 #define __LOG_RAW_GPS false
 
@@ -28,8 +28,11 @@
 #define ACCEL_Z_PIN A10
 
 #define ACCEL_MV_TO_G 6.5 // taken from ADXL377 datasheet (can be between 5.8 and 7.2, 6.5 is typical)
+#define ACCEL_X_CENTER 337  // these should be tuned to the individual sensor... and these things are NOISY
+#define ACCEL_Y_CENTER 357
+#define ACCEL_Z_CENTER 317
 
-#define ACCEL_ALPHA 0.75
+#define ACCEL_ALPHA 0.95
 #define ACCEL_SAMPLE_RATE 0.1 // in seconds, ie: 10Hz (or 1000ms * rate = sleep time)
 #define ALT_ALPHA 0.50
 #define ALT_SAMPLE_RATE 0.1
@@ -39,7 +42,7 @@
 #define GYRO_ALPHA 0.50
 #define GYRO_SAMPLE_RATE 0.1
 #define GPS_SAMPLE_RATE 1
-#define ANALOG_SAMPLE_RATE 1
+#define ANALOG_SAMPLE_RATE 2
 #define DECISION_SAMPLE_RATE 0.1
 #define TELEM_RATE_SLOW 5
 #define TELEM_RATE_MED 2.5
@@ -174,8 +177,11 @@ float linearCompFilter(volatile filter_val_t *val, float rawVal, float alpha, fl
 {
     val->rawVal = rawVal;
     float lastVal = val->filteredVal;
-    float diff = lastVal - rawVal;
+    float diff = rawVal - lastVal;
     // complementary filter
+    // .95 * (10 + (3 * 0.1)) = .95 * 10.3 = 9.785
+    // .05 * 13 = .65
+    // 9.785 + .65 = 10.435
     val->filteredVal = (alpha *                         // high pass filter
                             (lastVal + (diff * dt))     // integration of difference over time
                         ) +
@@ -308,17 +314,17 @@ void setupHighGAccel()
 void readHighGAccel()
 {
     // x
-    float sample = (float)analogRead(ACCEL_X_PIN);
+    float sample = (float)(analogRead(ACCEL_X_PIN) - ACCEL_X_CENTER);
     sample *= MV_PER_STEP; // now in mV
     sample /= ACCEL_MV_TO_G; // now in G's
     linearCompFilter(&hg_x, sample, ACCEL_ALPHA, ACCEL_SAMPLE_RATE);
     // y
-    sample = (float)analogRead(ACCEL_Y_PIN);
+    sample = (float)(analogRead(ACCEL_Y_PIN) - ACCEL_Y_CENTER);
     sample *= MV_PER_STEP;
     sample /= ACCEL_MV_TO_G;
     linearCompFilter(&hg_y, sample, ACCEL_ALPHA, ACCEL_SAMPLE_RATE);
     // z
-    sample = (float)analogRead(ACCEL_Z_PIN);
+    sample = (float)(analogRead(ACCEL_Z_PIN) - ACCEL_Z_CENTER);
     sample *= MV_PER_STEP;
     sample /= ACCEL_MV_TO_G;
     linearCompFilter(&hg_z, sample, ACCEL_ALPHA, ACCEL_SAMPLE_RATE);
@@ -528,7 +534,7 @@ static msg_t LowGAccelThread(void *arg)
 * Read from the Gyro.
 * Updates all associated values (gyro_)
 */
-static WORKING_AREA(gyroThreadWa, 128);
+static WORKING_AREA(gyroThreadWa, 64);
 static msg_t GyroThread(void *arg)
 {
     systime_t time = chTimeNow();
@@ -560,14 +566,15 @@ static msg_t AltimeterThread(void *arg)
 * Read analog values for continuity, voltage.
 * Updates all associated values (cont_, voltage)
 */
-static WORKING_AREA(analogThreadWa, 128);
+static WORKING_AREA(analogThreadWa, 32);
 static msg_t AnalogThread(void *arg)
 {
     systime_t time = chTimeNow();
     while(true)
     {
         time += MS2ST(RATE_TO_MS(ANALOG_SAMPLE_RATE));
-        readAltimeter();
+        testContinuity();
+        testVoltage();
         chThdSleepUntil(time);
     }
 }
@@ -615,7 +622,24 @@ void mainThread()
     {
         // send telemetry data
         // write log data to sd file
-
+        #if __DEBUG
+        DebugSerial->print("Unused Stack: hga:");
+        DebugSerial->print(chUnusedStack(hgAccelThreadWa, sizeof(hgAccelThreadWa)));
+        DebugSerial->print(", lga:");
+        DebugSerial->print(chUnusedStack(lgAccelThreadWa, sizeof(lgAccelThreadWa)));
+        DebugSerial->print(", gyro:");
+        DebugSerial->print(chUnusedStack(gyroThreadWa, sizeof(gyroThreadWa)));
+        DebugSerial->print(", alt:");
+        DebugSerial->print(chUnusedStack(altimeterThreadWa, sizeof(altimeterThreadWa)));
+        DebugSerial->print(", gps:");
+        DebugSerial->print(chUnusedStack(gpsThreadWa, sizeof(gpsThreadWa)));
+        DebugSerial->print(", ana:");
+        DebugSerial->print(chUnusedStack(analogThreadWa, sizeof(analogThreadWa)));
+        DebugSerial->print(", dec:");
+        DebugSerial->print(chUnusedStack(decisionThreadWa, sizeof(decisionThreadWa)));
+        DebugSerial->print(", main:");
+        DebugSerial->println(chUnusedHeapMain());
+        #endif
 
         logStatus();
 
@@ -649,62 +673,45 @@ void loop()
 
 void logStatus()
 {
-    #if __DEBUG
-    DebugSerial->print("Unused Stack: hga:");
-    DebugSerial->print(chUnusedStack(hgAccelThreadWa, sizeof(hgAccelThreadWa)));
-    DebugSerial->print(", lga:");
-    DebugSerial->print(chUnusedStack(lgAccelThreadWa, sizeof(lgAccelThreadWa)));
-    DebugSerial->print(", gyro:");
-    DebugSerial->print(chUnusedStack(gyroThreadWa, sizeof(gyroThreadWa)));
-    DebugSerial->print(", alt:");
-    DebugSerial->print(chUnusedStack(altimeterThreadWa, sizeof(altimeterThreadWa)));
-    DebugSerial->print(", gps:");
-    DebugSerial->print(chUnusedStack(gpsThreadWa, sizeof(gpsThreadWa)));
-    DebugSerial->print(", ana:");
-    DebugSerial->print(chUnusedStack(analogThreadWa, sizeof(analogThreadWa)));
-    DebugSerial->print(", dec:");
-    DebugSerial->print(chUnusedStack(decisionThreadWa, sizeof(decisionThreadWa)));
-    DebugSerial->print(", main:");
-    DebugSerial->println(chUnusedHeapMain());
-    #endif
+
 
     long t = millis();
-	char alt[16];
+	char alt[8];
 	dtostrf(altitude.filteredVal, 5, 2, alt);
-	char prs[16];
+	char prs[8];
 	dtostrf(pressure.filteredVal, 8, 2, prs);
-	char tem[16];
+	char tem[8];
 	dtostrf(temperature.filteredVal, 4, 2, tem);
 
-	char hgx[16];
+	char hgx[8];
 	dtostrf(hg_x.filteredVal, 4, 2, hgx);
-	char hgy[16];
+	char hgy[8];
 	dtostrf(hg_y.filteredVal, 4, 2, hgy);
-	char hgz[16];
+	char hgz[8];
 	dtostrf(hg_z.filteredVal, 4, 2, hgz);
 
-	char lgx[16];
+	char lgx[8];
 	dtostrf(lg_x.filteredVal, 4, 2, lgx);
-	char lgy[16];
+	char lgy[8];
 	dtostrf(lg_y.filteredVal, 4, 2, lgy);
-	char lgz[16];
+	char lgz[8];
 	dtostrf(lg_z.filteredVal, 4, 2, lgz);
 
-	char magx[16];
+	char magx[8];
 	dtostrf(mag_x.filteredVal, 4, 2, magx);
-	char magy[16];
+	char magy[8];
 	dtostrf(mag_y.filteredVal, 4, 2, magy);
-	char magz[16];
+	char magz[8];
 	dtostrf(mag_z.filteredVal, 4, 2, magz);
 
-	char gyrox[16];
+	char gyrox[8];
 	dtostrf(gyro_x.filteredVal, 4, 2, gyrox);
-	char gyroy[16];
+	char gyroy[8];
 	dtostrf(gyro_y.filteredVal, 4, 2, gyroy);
-	char gyroz[16];
+	char gyroz[8];
 	dtostrf(gyro_z.filteredVal, 4, 2, gyroz);
 
-	char vlt[16];
+	char vlt[8];
 	dtostrf(voltage, 4, 2, vlt);
 
 	String printBuffer = "$T{";
@@ -771,39 +778,39 @@ void logStatus()
 	// raw values
 	#if __RAW
     printBuffer += "\r\n$R{";
-    char ralt[16];
+    char ralt[8];
     dtostrf(altitude.rawVal, 5, 2, ralt);
-    char rprs[16];
+    char rprs[8];
     dtostrf(pressure.rawVal, 8, 2, rprs);
-    char rtem[16];
+    char rtem[8];
     dtostrf(temperature.rawVal, 4, 2, rtem);
 
-    char rxf[16];
+    char rxf[8];
     dtostrf(hg_x.rawVal, 4, 2, rxf);
-    char ryf[16];
+    char ryf[8];
     dtostrf(hg_y.rawVal, 4, 2, ryf);
-    char rzf[32];
+    char rzf[8];
     dtostrf(hg_z.rawVal, 4, 2, rzf);
 
-    char rlxf[16];
+    char rlxf[8];
     dtostrf(lg_x.rawVal, 4, 2, rlxf);
-    char rlyf[16];
+    char rlyf[8];
     dtostrf(lg_y.rawVal, 4, 2, rlyf);
-    char rlzf[16];
+    char rlzf[8];
     dtostrf(lg_z.rawVal, 4, 2, rlzf);
 
-    char rxm[16];
+    char rxm[8];
     dtostrf(mag_x.rawVal, 4, 2, rxm);
-    char rym[16];
+    char rym[8];
     dtostrf(mag_y.rawVal, 4, 2, rym);
-    char rzm[16];
+    char rzm[8];
     dtostrf(mag_z.rawVal, 4, 2, rzm);
 
-    char rxr[16];
+    char rxr[8];
     dtostrf(gyro_x.rawVal, 4, 2, rxr);
-    char ryr[16];
+    char ryr[8];
     dtostrf(gyro_y.rawVal, 4, 2, ryr);
-    char rzr[16];
+    char rzr[8];
     dtostrf(gyro_z.rawVal, 4, 2, rzr);
 
     //printBuffer += mode; printBuffer += ',';

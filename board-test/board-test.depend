@@ -1,15 +1,14 @@
 # depslib dependency file v1.0
-1377905466 source:c:\users\kurtis\projects\public\rocket-mega-code\board-test\board-test.ino
+1378437752 source:c:\users\kurtis\projects\public\rocket-mega-code\board-test\board-test.ino
 	<Arduino.h>
-	<SoftwareSerial.h>
 	<Adafruit_GPS.h>
+	<SPI.h>
 	<SD.h>
 	<Adafruit_Sensor.h>
 	<Adafruit_L3GD20.h>
 	<Wire.h>
 	<Adafruit_BMP085.h>
 	<Adafruit_LSM303.h>
-	<KalmanSingleState.h>
 
 1362986950 c:\users\kurtis\downloads\codeblocks-arduino-20130428\codeblocks\arduino\hardware\arduino\cores\arduino\arduino.h
 	<stdlib.h>
