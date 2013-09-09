@@ -1,8 +1,8 @@
 build/
-.a
-.o
-.elf
-.hex
-.lss
-.map
-.depend
+*.a
+*.o
+*.elf
+*.hex
+*.lss
+*.map
+*.depend

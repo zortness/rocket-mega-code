@@ -17,10 +17,12 @@
 #define ACCEL_X_PIN A8
 #define ACCEL_Y_PIN A9
 #define ACCEL_Z_PIN A10
-#define ACCEL_MV_TO_G 6.5 // taken from ADXL377 datasheet (can be between 5.8 and 7.2, 6.5 is typical)
-#define ACCEL_X_CENTER 337
-#define ACCEL_Y_CENTER 357
-#define ACCEL_Z_CENTER 317
+// taken from ADXL377 datasheet (can be between 5.8 and 7.2, 6.5 is typical)
+#define ACCEL_MV_TO_G 6.5
+
+#define ACCEL_X_CENTER_OFFSET 0
+#define ACCEL_Y_CENTER_OFFSET 0
+#define ACCEL_Z_CENTER_OFFSET 0
 
 #define PYRO_1_PIN 42
 #define PYRO_2_PIN 43
@@ -38,18 +40,36 @@
   #define VOLTAGE_REF 5.0
   #define V_PER_STEP 0.0048828125 // vref / adc_max
   #define MV_PER_STEP 4.8828125
+  #define ACCEL_X_CENTER 337
+  #define ACCEL_Y_CENTER 337
+  #define ACCEL_Z_CENTER 337
+  // for 10-bit ADC, range is 0-1023
+  // ((3.3/5.0) * 1023) / 2 = 337.59 -> center point
+  // 200/337.59 = 0.59243761002991 G's per step
+  #define G_PER_STEP 0.59243761
 
 // Mega 1280 & 2560 (5v)
 #elif defined(__AVR_ATmega1280__) || defined(__AVR_ATmega2560__)
   #define VOLTAGE_REF 5.0
   #define V_PER_STEP 0.0048828125
   #define MV_PER_STEP 4.8828125
+  #define ACCEL_X_CENTER 337
+  #define ACCEL_Y_CENTER 337
+  #define ACCEL_Z_CENTER 337
+  #define G_PER_STEP 0.59243761
 
 // Due and others (3.3v)
 #else
   #define VOLTAGE_REF 3.3
   #define V_PER_STEP 0.00322265625
   #define MV_PER_STEP 3.22265625
+  #define ACCEL_X_CENTER 512
+  #define ACCEL_Y_CENTER 512
+  #define ACCEL_Z_CENTER 512
+  // for 10-bit ADC (default setting), range is 0-1023
+  // 1024 / 2 = 512 -> center point
+  // 200/512 = 0.390625 G's per step
+  #define G_PER_STEP 0.390625
 
 #endif
 

@@ -26,11 +26,9 @@
 #define ACCEL_X_PIN A8
 #define ACCEL_Y_PIN A9
 #define ACCEL_Z_PIN A10
+// taken from ADXL377 datasheet (can be between 5.8 and 7.2, 6.5 is typical)
+#define ACCEL_MV_TO_G 6.5
 
-#define ACCEL_MV_TO_G 6.5 // taken from ADXL377 datasheet (can be between 5.8 and 7.2, 6.5 is typical)
-#define ACCEL_X_CENTER 337  // these should be tuned to the individual sensor... and these things are NOISY
-#define ACCEL_Y_CENTER 357
-#define ACCEL_Z_CENTER 317
 
 #define ACCEL_ALPHA 0.95
 #define ACCEL_SAMPLE_RATE 0.1 // in seconds, ie: 10Hz (or 1000ms * rate = sleep time)
@@ -45,7 +43,7 @@
 #define ANALOG_SAMPLE_RATE 2
 #define DECISION_SAMPLE_RATE 0.1
 #define TELEM_RATE_SLOW 5
-#define TELEM_RATE_MED 2.5
+#define TELEM_RATE_MED 1
 #define TELEM_RATE_FAST 0.5
 
 #define RATE_TO_MS(A)   (int)(1000.0 * A)
@@ -70,26 +68,50 @@
   #define VOLTAGE_REF 5.0
   #define V_PER_STEP 0.0048828125 // vref / adc_max
   #define MV_PER_STEP 4.8828125
+  #define ACCEL_X_CENTER 337
+  #define ACCEL_Y_CENTER 337
+  #define ACCEL_Z_CENTER 337
+  // for 10-bit ADC, range is 0-1023
+  // ((3.3/5.0) * 1023) / 2 = 337.59 -> center point
+  // 200/337.59 = 0.59243761002991 G's per step
+  #define G_PER_STEP 0.59243761
 
 // Mega 1280 & 2560 (5v)
 #elif defined(__AVR_ATmega1280__) || defined(__AVR_ATmega2560__)
   #define VOLTAGE_REF 5.0
   #define V_PER_STEP 0.0048828125
   #define MV_PER_STEP 4.8828125
+  #define ACCEL_X_CENTER 337
+  #define ACCEL_Y_CENTER 337
+  #define ACCEL_Z_CENTER 337
+  #define G_PER_STEP 0.59243761
 
 // Due and others (3.3v)
 #else
   #define VOLTAGE_REF 3.3
   #define V_PER_STEP 0.00322265625
   #define MV_PER_STEP 3.22265625
-
+  #define ACCEL_X_CENTER 512
+  #define ACCEL_Y_CENTER 512
+  #define ACCEL_Z_CENTER 512
+  // for 10-bit ADC (default setting), range is 0-1023
+  // 1024 / 2 = 512 -> center point
+  // 200/512 = 0.390625 G's per step
+  #define G_PER_STEP 0.390625
 #endif
 
 
 #define LED_PIN 13
 #define BUZZER_PIN 8
 
-#define DEFAULT_SEALEVEL_PRESSURE 1013.21 // in h pascals, 101325
+#define DEFAULT_ASCENT_THRESHOLD 45              // in m/s^2
+#define DEFAULT_ALT_ASCENT_THRESHOLD 25         // in meters from starting altitude
+#define DEFAULT_ALT_VEL_THRESHOLD 20            // in meters / second
+#define DEFAULT_APOGEE_THRESHOLD 15             // in m/s^2
+#define DEFAULT_ALT_VEL_APOGEE_THRESHOLD -5     // in meters / second
+#define DEFAULT_TOUCHDOWN_THRESHOLD 15	        // in m/s^2
+#define DEFAULT_MAIN_ALTITUDE 300               // in meters (added to deck altitude)
+#define DEFAULT_SEALEVEL_PRESSURE 1013.21       // in h pascals, 101325
 
 // errors and warnings
 #define ERROR_SD 1
@@ -105,6 +127,16 @@
 #define WARN_BEEP_HZ 1915
 #define WARN_BEEP_DUR 250
 #define WARN_BEEP_DEL 300
+
+#define MODE_ERROR 999
+#define MODE_STARTUP 0
+#define MODE_READY 1
+#define MODE_ASCENT 2
+#define MODE_APOGEE 3
+#define MODE_DESCENT 4
+#define MODE_DESCENT2 5
+#define MODE_TOUCHDOWN 6
+#define MODE_PAUSE 7
 
 
 // includes
@@ -129,29 +161,30 @@ HardwareSerial *DebugSerial = &DEBUG_SERIAL;
 HardwareSerial *TelemSerial = &TELEM_SERIAL;
 HardwareSerial *GpsSerial = &GPS_SERIAL;
 File logFile;
+boolean logSd = false;
 Adafruit_GPS GPS(GpsSerial); // gets read by printing thread
 Adafruit_L3GD20 gyro;
 Adafruit_BMP085 bmp = Adafruit_BMP085(10085);
 Adafruit_LSM303_Mag mag = Adafruit_LSM303_Mag(12345);
 Adafruit_LSM303_Accel accel = Adafruit_LSM303_Accel(54321);
-float sealevelPressure = DEFAULT_SEALEVEL_PRESSURE;
 
 // volatile stuff for sensor values
-volatile filter_val_t hg_x;
-volatile filter_val_t hg_y;
-volatile filter_val_t hg_z;
-volatile filter_val_t lg_x;
-volatile filter_val_t lg_y;
-volatile filter_val_t lg_z;
-volatile filter_val_t mag_x;
-volatile filter_val_t mag_y;
-volatile filter_val_t mag_z;
-volatile filter_val_t gyro_x;
-volatile filter_val_t gyro_y;
-volatile filter_val_t gyro_z;
-volatile filter_val_t temperature;
-volatile filter_val_t pressure;
-volatile filter_val_t altitude;
+volatile filter_val_t hg_x;             // in G's (* ~9.8 m/s^2)
+volatile filter_val_t hg_y;             // in G's
+volatile filter_val_t hg_z;             // in G's
+volatile filter_val_t lg_x;             // in G's
+volatile filter_val_t lg_y;             // in G's
+volatile filter_val_t lg_z;             // in G's
+volatile filter_val_t mag_x;            // in micro Tesla (uT)
+volatile filter_val_t mag_y;            // in micro Tesla (uT)
+volatile filter_val_t mag_z;            // in micro Tesla (uT)
+volatile filter_val_t gyro_x;           // angular degrees per second (d/s)
+volatile filter_val_t gyro_y;           // angular degrees per second (d/s)
+volatile filter_val_t gyro_z;           // angular degrees per second (d/s)
+volatile filter_val_t temperature;      // in celcius (C)
+volatile filter_val_t pressure;         // in hectapascals (hPa)
+volatile filter_val_t altitude;         // in meters (m)
+volatile filter_val_t alt_vel;          // in meters per second (m/s), based on delta altitude
 
 // additional volatile vals
 volatile int cont1 = 0;
@@ -166,8 +199,46 @@ float longitude = 0.0;
 int gpsBufferLoc = 0;
 char gpsBuffer[256] = "";
 
-void logStatus();
+static String printBuffer;
 
+float sealevelPressure = DEFAULT_SEALEVEL_PRESSURE;
+float startingAltitude = 0;
+float maxAltitude = 0;
+float ascentThreshold = DEFAULT_ASCENT_THRESHOLD;
+float ascentAltThreshold = DEFAULT_ALT_ASCENT_THRESHOLD;
+float ascentVelThreshold = DEFAULT_ALT_VEL_THRESHOLD;
+float apogeeThreshold = DEFAULT_APOGEE_THRESHOLD;
+float apogeeVelThreshold = DEFAULT_ALT_VEL_APOGEE_THRESHOLD;
+float touchdownThreshold = DEFAULT_TOUCHDOWN_THRESHOLD;
+float mainDeployAltitude = DEFAULT_MAIN_ALTITUDE;
+unsigned long launchTime = 0;
+unsigned long apogeeTime = 0;
+unsigned long mainTime = 0;
+unsigned long touchdownTime = 0;
+unsigned long maxForce = 0;
+float minTemperature = 0;
+float maxTemperature = 0;
+float minPressure = DEFAULT_SEALEVEL_PRESSURE; // we set this to the first reading anyway, but just to be safe
+float maxPressure = 0;
+bool statsOut = false;
+
+// used for tracking times that relays are activated
+unsigned long drogueDeployStart = 0;
+unsigned long mainDeployStart = 0;
+
+volatile uint8_t mode = MODE_STARTUP;
+
+void logStatus();
+void logStatusTd();
+void logStats();
+void modeReady();
+void modeAscent();
+void modeApogee();
+void modeDescent();
+void modeDescent2();
+void modeTouchdown();
+void deployMain();
+void deployDrogue();
 
 /**
 * Linear version of a complimentary filter.
@@ -231,6 +302,7 @@ void beepError(int pulses, bool halt)
         }
         else
         {
+            mode = MODE_ERROR;
             delay(5000);
         }
     }
@@ -289,6 +361,7 @@ void setupSd()
 		}
 		else
 		{
+		    logSd = true;
 		    #if __DEBUG
 			DebugSerial->print("Writing to ");
 			DebugSerial->println(filename);
@@ -315,18 +388,15 @@ void readHighGAccel()
 {
     // x
     float sample = (float)(analogRead(ACCEL_X_PIN) - ACCEL_X_CENTER);
-    sample *= MV_PER_STEP; // now in mV
-    sample /= ACCEL_MV_TO_G; // now in G's
+    sample *= G_PER_STEP;
     linearCompFilter(&hg_x, sample, ACCEL_ALPHA, ACCEL_SAMPLE_RATE);
     // y
     sample = (float)(analogRead(ACCEL_Y_PIN) - ACCEL_Y_CENTER);
-    sample *= MV_PER_STEP;
-    sample /= ACCEL_MV_TO_G;
+    sample *= G_PER_STEP;
     linearCompFilter(&hg_y, sample, ACCEL_ALPHA, ACCEL_SAMPLE_RATE);
     // z
     sample = (float)(analogRead(ACCEL_Z_PIN) - ACCEL_Z_CENTER);
-    sample *= MV_PER_STEP;
-    sample /= ACCEL_MV_TO_G;
+    sample *= G_PER_STEP;
     linearCompFilter(&hg_z, sample, ACCEL_ALPHA, ACCEL_SAMPLE_RATE);
 }
 
@@ -353,8 +423,14 @@ void readAltimeter()
 	bmp.getTemperature(&rawTemperature);
     linearCompFilter(&pressure, event.pressure, ALT_ALPHA, ALT_SAMPLE_RATE);
     linearCompFilter(&temperature, rawTemperature, ALT_ALPHA, ALT_SAMPLE_RATE);
+    float lastAlt = altitude.filteredVal;
     linearCompFilter(&altitude, bmp.pressureToAltitude(sealevelPressure, event.pressure, rawTemperature),
                      ALT_ALPHA, ALT_SAMPLE_RATE);
+    if (lastAlt != 0)
+    {
+        linearCompFilter(&alt_vel, ((altitude.filteredVal - lastAlt) * ALT_SAMPLE_RATE),
+                     ALT_ALPHA, ALT_SAMPLE_RATE);
+    }
 }
 
 void setupLowGAccel()
@@ -580,22 +656,31 @@ static msg_t AnalogThread(void *arg)
 }
 
 /**
-* Decision making thread. This is what controls our current state.
+* Decision thread. Runs at High Priority. Makes decisions.
 */
-static WORKING_AREA(decisionThreadWa, 128);
+static WORKING_AREA(decisionThreadWa, 256);
 static msg_t DecisionThread(void *arg)
 {
     systime_t time = chTimeNow();
     while(true)
     {
-        time += MS2ST(RATE_TO_MS(ANALOG_SAMPLE_RATE));
-        TelemSerial->println("making decisions");
+        time += MS2ST(RATE_TO_MS(DECISION_SAMPLE_RATE));
+
+        switch(mode)
+        {
+            case MODE_READY: modeReady(); break;
+            case MODE_ASCENT: modeAscent(); break;
+            case MODE_APOGEE: modeApogee(); break;
+            case MODE_DESCENT: modeDescent(); break;
+            case MODE_DESCENT2: modeDescent2(); break;
+            case MODE_TOUCHDOWN: modeTouchdown(); break;
+        }
         chThdSleepUntil(time);
     }
 }
 
 /**
-* Main thread... starts everything else and dumps data.
+* Main thread... starts everything else and sends out telemtry.
 */
 void mainThread()
 {
@@ -614,40 +699,80 @@ void mainThread()
     chThdCreateStatic(analogThreadWa, sizeof(analogThreadWa), NORMALPRIO, AnalogThread, NULL); // analog
 
     // let sensor threads run for a few seconds to stabilize
-    chThdSleepUntil(time += MS2ST(2500));
+    chThdSleepUntil(time += MS2ST(5000));
+
+    startingAltitude = altitude.filteredVal;
+
+    #if __DEBUG
+    DebugSerial->print("Starting altitude: ");
+    DebugSerial->println(altitude.filteredVal);
+    #endif
+    TelemSerial->print("Starting altitude: ");
+    TelemSerial->println(altitude.filteredVal);
+
+    // TODO: beep continuities, etc?
+
+    mode = MODE_READY;
+
     // start decision thread
     chThdCreateStatic(decisionThreadWa, sizeof(decisionThreadWa), HIGHPRIO, DecisionThread, NULL);
 
+    time = chTimeNow();
     while(true)
     {
-        // send telemetry data
-        // write log data to sd file
-        #if __DEBUG
-        DebugSerial->print("Unused Stack: hga:");
-        DebugSerial->print(chUnusedStack(hgAccelThreadWa, sizeof(hgAccelThreadWa)));
-        DebugSerial->print(", lga:");
-        DebugSerial->print(chUnusedStack(lgAccelThreadWa, sizeof(lgAccelThreadWa)));
-        DebugSerial->print(", gyro:");
-        DebugSerial->print(chUnusedStack(gyroThreadWa, sizeof(gyroThreadWa)));
-        DebugSerial->print(", alt:");
-        DebugSerial->print(chUnusedStack(altimeterThreadWa, sizeof(altimeterThreadWa)));
-        DebugSerial->print(", gps:");
-        DebugSerial->print(chUnusedStack(gpsThreadWa, sizeof(gpsThreadWa)));
-        DebugSerial->print(", ana:");
-        DebugSerial->print(chUnusedStack(analogThreadWa, sizeof(analogThreadWa)));
-        DebugSerial->print(", dec:");
-        DebugSerial->print(chUnusedStack(decisionThreadWa, sizeof(decisionThreadWa)));
-        DebugSerial->print(", main:");
-        DebugSerial->println(chUnusedHeapMain());
-        #endif
+        switch(mode)
+        {
+            case MODE_READY:
+                time += MS2ST(RATE_TO_MS(TELEM_RATE_MED));
+                break;
+            case MODE_ASCENT:
+                time += MS2ST(RATE_TO_MS(TELEM_RATE_FAST));
+                break;
+            case MODE_APOGEE:
+            case MODE_DESCENT:
+            case MODE_DESCENT2:
+                time += MS2ST(RATE_TO_MS(TELEM_RATE_MED));
+                break;
+            case MODE_TOUCHDOWN:
+                time += MS2ST(RATE_TO_MS(TELEM_RATE_SLOW));
+                break;
+            default:
+                time += MS2ST(RATE_TO_MS(TELEM_RATE_SLOW));
+                break;
+        }
 
-        logStatus();
+        // check relays
+        unsigned long t = millis();
+        if (drogueDeployStart > 0 && (drogueDeployStart + PYRO_ON_TIME) < t)
+        {
+            digitalWrite(PYRO_2_PIN, LOW);
+            drogueDeployStart = 0;
+        }
+        if (mainDeployStart > 0 && (mainDeployStart + PYRO_ON_TIME) < t)
+        {
+            digitalWrite(PYRO_1_PIN, LOW);
+            mainDeployStart = 0;
+        }
 
-        // timing is not critical, so it doesn't matter if we drift a bit
-        chThdSleepUntil(chTimeNow() + MS2ST( RATE_TO_MS(GPS_SAMPLE_RATE) ));
+        // toggle LED
+        digitalWrite(LED_PIN, !digitalRead(LED_PIN));
+
+        if (mode == MODE_TOUCHDOWN)
+        {
+            logStatusTd();
+        }
+        else
+        {
+            logStatus();
+        }
+        chThdSleepUntil(time);
     }
 }
 
+/**
+* Setup everything.
+* Part of the Arduino library.
+*/
 void setup()
 {
 	setupSerials();
@@ -657,6 +782,9 @@ void setup()
     setupLowGAccel();
     setupGyro();
     setupGps();
+
+    printBuffer.reserve(400);
+
     #if __DEBUG
     DebugSerial->println("INFO: Setup complete");
     #endif
@@ -664,20 +792,204 @@ void setup()
     chBegin(mainThread);
     while(true){}
 }
+void loop(){/* not used, part of Arduino library, obsolete with ChibiOS */}
 
 
-void loop()
+
+/**
+* Ready mode, looking for liftoff condition.
+*/
+void modeReady()
 {
-	// not used
+    // using the more sensitive (and less noisy) low G digital accelerometer
+    // also testing the starting altitude vs current altitude
+	if( lg_x.filteredVal > ascentThreshold
+		|| lg_y.filteredVal > ascentThreshold
+		|| lg_z.filteredVal > ascentThreshold
+		|| altitude.filteredVal > startingAltitude + ascentAltThreshold
+		|| alt_vel.filteredVal > ascentVelThreshold)
+	{
+		mode = MODE_ASCENT;
+		launchTime = millis();
+		String msg = "INFO: Launch Detected ";
+		if( lg_x.filteredVal > ascentThreshold ) msg += "X";
+		if( lg_y.filteredVal > ascentThreshold ) msg += "Y";
+		if( lg_z.filteredVal > ascentThreshold ) msg += "Z";
+		if( altitude.filteredVal > startingAltitude + ascentAltThreshold ) msg += "ALT";
+		if( alt_vel.filteredVal > ascentVelThreshold ) msg += "VEL";
+		#if __DEBUG
+        DebugSerial->println(msg);
+        #endif
+		TelemSerial->println(msg);
+		if (logSd)
+		{
+			logFile.println(msg);
+			logFile.flush();
+		}
+		return;
+	}
 }
 
+/**
+* Ascent mode, looking for apogee condition.
+*/
+void modeAscent()
+{
+	// constantly check accelerometer for levelling off or swing in direction of force
+	// check altimeter for drops
+	// switch to apogee mode
+
+	if( (lg_x.filteredVal < apogeeThreshold
+		&& lg_y.filteredVal < apogeeThreshold
+		&& lg_z.filteredVal < apogeeThreshold)
+        ||
+        alt_vel.filteredVal < apogeeVelThreshold
+		)
+	{
+		mode = MODE_APOGEE;
+		apogeeTime = millis();
+		String msg = "INFO: Apogee Detected";
+		if( lg_x.filteredVal < apogeeThreshold ) msg += "X";
+		if( lg_y.filteredVal < apogeeThreshold ) msg += "Y";
+		if( lg_z.filteredVal < apogeeThreshold ) msg += "Z";
+		if( alt_vel.filteredVal < apogeeVelThreshold ) msg += "VEL";
+		#if __DEBUG
+        DebugSerial->println(msg);
+        #endif
+		TelemSerial->println(msg);
+		if (logSd)
+		{
+			logFile.println(msg);
+			logFile.flush();
+		}
+	}
+}
+
+/**
+* Apogee mode, looking for descent.
+*/
+void modeApogee()
+{
+	// wait for altitude to start dropping?
+	deployDrogue();
+	mode = MODE_DESCENT;
+	String msg = "INFO: Descending";
+	#if __DEBUG
+    DebugSerial->println(msg);
+    #endif
+    TelemSerial->println(msg);
+    if (logSd)
+    {
+        logFile.println(msg);
+        logFile.flush();
+    }
+}
+
+/**
+* Descent mode, looking for main deployment condition.
+*/
+void modeDescent()
+{
+	// constantly check altimeter for main chute deployment altitude
+	// check GPS altitude too?
+	if (altitude.filteredVal <= (startingAltitude + mainDeployAltitude))
+	{
+		mode = MODE_DESCENT2;
+		mainTime = millis();
+		deployMain();
+		String msg = "INFO: Main Deploy";
+        #if __DEBUG
+        DebugSerial->println(msg);
+        #endif
+        TelemSerial->println(msg);
+        if (logSd)
+        {
+            logFile.println(msg);
+            logFile.flush();
+        }
+	}
+}
+
+/**
+* Main chute deployed, looking for touchdown.
+*/
+void modeDescent2()
+{
+	if (lg_x.filteredVal < touchdownThreshold
+		&& lg_y.filteredVal < touchdownThreshold
+		&& lg_z.filteredVal < touchdownThreshold
+		&& alt_vel.filteredVal < 0.25F )
+	{
+		// switch to touchdown
+		mode = MODE_TOUCHDOWN;
+		touchdownTime = millis();
+		String msg = "INFO: Touchdown";
+        #if __DEBUG
+        DebugSerial->println(msg);
+        #endif
+        TelemSerial->println(msg);
+        if (logSd)
+        {
+            logFile.println(msg);
+            logFile.flush();
+        }
+	}
+}
+
+/**
+* Touchdown complete, awaiting pickup.
+*/
+void modeTouchdown()
+{
+    // low power mode?
+}
+
+/**
+* Deploy drogue chute
+*/
+void deployDrogue()
+{
+    digitalWrite(PYRO_2_PIN, HIGH);
+    drogueDeployStart = millis();
+}
+
+/**
+* Deploy main chute
+*/
+void deployMain()
+{
+    digitalWrite(PYRO_1_PIN, HIGH);
+    mainDeployStart = millis();
+}
+
+/**
+* Log everything out to Telemetry, Debug, and uSD.
+*/
 void logStatus()
 {
+    #if __DEBUG
+    DebugSerial->print("$STK, hga:");
+    DebugSerial->print(chUnusedStack(hgAccelThreadWa, sizeof(hgAccelThreadWa)));
+    DebugSerial->print(", lga:");
+    DebugSerial->print(chUnusedStack(lgAccelThreadWa, sizeof(lgAccelThreadWa)));
+    DebugSerial->print(", gyro:");
+    DebugSerial->print(chUnusedStack(gyroThreadWa, sizeof(gyroThreadWa)));
+    DebugSerial->print(", alt:");
+    DebugSerial->print(chUnusedStack(altimeterThreadWa, sizeof(altimeterThreadWa)));
+    DebugSerial->print(", gps:");
+    DebugSerial->print(chUnusedStack(gpsThreadWa, sizeof(gpsThreadWa)));
+    DebugSerial->print(", ana:");
+    DebugSerial->print(chUnusedStack(analogThreadWa, sizeof(analogThreadWa)));
+    DebugSerial->print(", dec:");
+    DebugSerial->print(chUnusedStack(decisionThreadWa, sizeof(decisionThreadWa)));
+    DebugSerial->print(", main:");
+    DebugSerial->println(chUnusedHeapMain());
+    #endif
 
-
-    long t = millis();
 	char alt[8];
 	dtostrf(altitude.filteredVal, 5, 2, alt);
+	char vel[8];
+	dtostrf(alt_vel.filteredVal, 5, 2, vel);
 	char prs[8];
 	dtostrf(pressure.filteredVal, 8, 2, prs);
 	char tem[8];
@@ -714,11 +1026,11 @@ void logStatus()
 	char vlt[8];
 	dtostrf(voltage, 4, 2, vlt);
 
-	String printBuffer = "$T{";
+	printBuffer = "$T,";
 
-	//printBuffer += mode; printBuffer += ',';
-	//printBuffer += t; printBuffer += ',';
+	printBuffer += mode; printBuffer += ',';
 	printBuffer += alt; printBuffer += ',';
+	printBuffer += vel; printBuffer += ',';
 	printBuffer += hgx; printBuffer += ',';
 	printBuffer += hgy; printBuffer += ',';
 	printBuffer += hgz; printBuffer += ',';
@@ -738,7 +1050,7 @@ void logStatus()
 	printBuffer += cont3; printBuffer += ',';
 	printBuffer += cont4; printBuffer += ',';
 	printBuffer += vlt; printBuffer += ',';
-	printBuffer += (int)GPS.fix; //printBuffer += '}';
+	printBuffer += (int)GPS.fix;
 
 	if (GPS.fix)
 	{
@@ -757,29 +1069,31 @@ void logStatus()
 		printBuffer += ',';
 		printBuffer += lat; printBuffer += ',';
 		printBuffer += lon; printBuffer += ',';
-		printBuffer += spd; printBuffer += ','; //printBuffer += "kn,";
-		printBuffer += ang; printBuffer += ','; //printBuffer += "dg,";
-		printBuffer += galt; printBuffer += ','; //printBuffer += "m,";
-		printBuffer += (int)GPS.satellites; printBuffer += ','; //printBuffer += "sat,";
+		printBuffer += spd; printBuffer += ','; // knots //printBuffer += "kn,";
+		printBuffer += ang; printBuffer += ','; // degrees
+		printBuffer += galt; printBuffer += ','; // meters
+		printBuffer += (int)GPS.satellites; printBuffer += ',';
 		printBuffer += GPS.year; printBuffer += '-';
 		printBuffer += GPS.month; printBuffer += '-';
 		printBuffer += GPS.day; printBuffer += '_';
 		printBuffer += GPS.hour; printBuffer += ':';
 		printBuffer += GPS.minute; printBuffer += ':';
 		printBuffer += GPS.seconds; printBuffer += '.';
-		printBuffer += GPS.milliseconds; //printBuffer += ';';
+		printBuffer += GPS.milliseconds;
+		printBuffer += "\r\n";
 	}
 	else
     {
-        printBuffer += ",,,,,,";
+        printBuffer += ",,,,,,\r\n";
     }
-	printBuffer += '}';
 
 	// raw values
 	#if __RAW
-    printBuffer += "\r\n$R{";
+    printBuffer += "$R,";
     char ralt[8];
     dtostrf(altitude.rawVal, 5, 2, ralt);
+    char rvel[8];
+    dtostrf(alt_vel.rawVal, 5, 2, rvel);
     char rprs[8];
     dtostrf(pressure.rawVal, 8, 2, rprs);
     char rtem[8];
@@ -813,9 +1127,8 @@ void logStatus()
     char rzr[8];
     dtostrf(gyro_z.rawVal, 4, 2, rzr);
 
-    //printBuffer += mode; printBuffer += ',';
-    //printBuffer += t; printBuffer += ',';
     printBuffer += ralt; printBuffer += ',';
+    printBuffer += rvel; printBuffer += ',';
     printBuffer += rxf; printBuffer += ',';
     printBuffer += ryf; printBuffer += ',';
     printBuffer += rzf; printBuffer += ',';
@@ -830,14 +1143,109 @@ void logStatus()
     printBuffer += rzm; printBuffer += ',';
     printBuffer += rtem; printBuffer += ',';
     printBuffer += rprs;
+    printBuffer += "\r\n";
 
-    printBuffer += '}';
     #endif
 
+    #if __DEBUG
+    DebugSerial->print(printBuffer);
+    #endif
+    TelemSerial->print(printBuffer);
+
+    if (logSd)
+    {
+        if (logFile.print(printBuffer) < 0)
+        {
+            #if __DEBUG
+            DebugSerial->println("ERROR: Failed to write to SD card.");
+            #endif
+            logSd = false;
+            logFile.close();
+        }
+        else
+        {
+            logFile.flush();
+        }
+    }
+}
+
+
+/**
+* Log our flight stats (after touchdown).
+*/
+void logStats()
+{
+	char stalt[16];
+	dtostrf(startingAltitude, 5, 2, stalt);
+	char maxalt[16];
+	dtostrf(maxAltitude, 5, 2, maxalt);
+	char maxtemp[8];
+	dtostrf(maxTemperature, 5, 2, maxtemp);
+	char mintemp[8];
+	dtostrf(minTemperature, 5, 2, mintemp);
+	char maxpress[16];
+	dtostrf(maxPressure, 5, 2, maxpress);
+	char minpress[8];
+	dtostrf(minPressure, 5, 2, minpress);
+
+	printBuffer = "========= Flight Stats ============\r\n";
+	printBuffer += "Starting Altitude: "; printBuffer += stalt; printBuffer += "\r\n";
+	printBuffer += "Maximum Altitude: "; printBuffer += maxalt; printBuffer += "\r\n";
+	printBuffer += "Maximum Temperature: "; printBuffer += maxtemp; printBuffer += "\r\n";
+	printBuffer += "Minimum Temperature: "; printBuffer += mintemp; printBuffer += "\r\n";
+	printBuffer += "Maximum Pressure: "; printBuffer += maxpress; printBuffer += "\r\n";
+	printBuffer += "Minimum Pressure: "; printBuffer += minpress; printBuffer += "\r\n";
+	printBuffer += "Maximum Force: "; printBuffer += maxForce; printBuffer += "\r\n";
+	printBuffer += "Launch Time: "; printBuffer += launchTime; printBuffer += "\r\n";
+	printBuffer += "Apogee Time: "; printBuffer += apogeeTime; printBuffer += "\r\n";
+	printBuffer += "Main Time: "; printBuffer += mainTime; printBuffer += "\r\n";
+	printBuffer += "Touchdown Time: "; printBuffer += touchdownTime; printBuffer += "\r\n";
+	printBuffer += "Ascent Time: "; printBuffer += (apogeeTime - launchTime); printBuffer += "\r\n";
+	printBuffer += "Descent Time: "; printBuffer += (touchdownTime - apogeeTime); printBuffer += "\r\n";
+	printBuffer += "Flight Time: "; printBuffer += (touchdownTime - launchTime); printBuffer += "\r\n";
+
+	#if __DEBUG
+    DebugSerial->print(printBuffer);
+    #endif
+    TelemSerial->print(printBuffer);
+    if (logSd)
+    {
+        logFile.print(printBuffer);
+        logFile.flush();
+    }
+}
+
+/**
+* Log our status, after touchdown.
+*/
+void logStatusTd()
+{
+    if (!statsOut)
+    {
+        logStats(); // just do this once
+        statsOut = true;
+    }
+    printBuffer = "INFO: Location: ";
+    // just output our current position on telemetry?
+    if (GPS.fix)
+	{
+		char lat[16];
+		dtostrf(latitude, 10, 6, lat);
+		char lon[16];
+		dtostrf(longitude, 10, 6, lon);
+		char galt[16];
+		dtostrf(GPS.altitude, 6, 2, galt);
+
+		printBuffer += lat; printBuffer += ',';
+		printBuffer += lon; printBuffer += ',';
+		printBuffer += galt; printBuffer += ','; // meters
+	}
+	else
+    {
+        printBuffer += "No Fix!";
+    }
     #if __DEBUG
     DebugSerial->println(printBuffer);
     #endif
     TelemSerial->println(printBuffer);
-
-    // TODO: log to file as well
 }

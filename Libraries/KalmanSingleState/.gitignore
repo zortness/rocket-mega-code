@@ -1,9 +1,9 @@
 build/
-.a
-.o
-.elf
-.hex
-.lss
-.map
-KalmanSingleState.depend
-KalmanSingleState.layout
+*.a
+*.o
+*.elf
+*.hex
+*.lss
+*.map
+*.depend
+*.layout

@@ -1,9 +1,8 @@
 build/
-.a
-.o
-.elf
-.hex
-.lss
-.map
-RocketMega.depend
-RocketMega.layout
+*.a
+*.o
+*.elf
+*.hex
+*.lss
+*.map
+*.depend
