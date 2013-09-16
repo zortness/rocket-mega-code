@@ -6,3 +6,4 @@ build/
 *.lss
 *.map
 *.depend
+*.layout

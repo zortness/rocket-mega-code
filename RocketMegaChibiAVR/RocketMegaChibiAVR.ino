@@ -7,6 +7,8 @@
 */
 
 #define __DEBUG true
+#define __DEBUG_STACK true
+#define __DEBUG_GPS false
 #define __RAW true
 #define __TELEM_RAW_GPS false
 #define __LOG_RAW_GPS false
@@ -17,6 +19,7 @@
 #define TELEM_BAUD 57600
 #define GPS_BAUD 9600
 #define GPS_SERIAL Serial2
+#define GPS_BUFFER_SIZE 256
 
 #define SD_CHIP_SELECT 48
 //#define SPI_MISO_PIN 50
@@ -27,24 +30,24 @@
 #define ACCEL_Y_PIN A9
 #define ACCEL_Z_PIN A10
 // taken from ADXL377 datasheet (can be between 5.8 and 7.2, 6.5 is typical)
-#define ACCEL_MV_TO_G 6.5
+#define ACCEL_MV_TO_G 6.5F
 
 
-#define ACCEL_ALPHA 0.95
-#define ACCEL_SAMPLE_RATE 0.1 // in seconds, ie: 10Hz (or 1000ms * rate = sleep time)
-#define ALT_ALPHA 0.50
-#define ALT_SAMPLE_RATE 0.1
-#define LGACC_ALPHA 0.50
-#define LGACC_SAMPLE_RATE 0.1
-#define MG_ALPHA 0.50
-#define GYRO_ALPHA 0.50
-#define GYRO_SAMPLE_RATE 0.1
-#define GPS_SAMPLE_RATE 1
-#define ANALOG_SAMPLE_RATE 2
-#define DECISION_SAMPLE_RATE 0.1
-#define TELEM_RATE_SLOW 5
-#define TELEM_RATE_MED 1
-#define TELEM_RATE_FAST 0.5
+#define ACCEL_ALPHA 0.95F
+#define ACCEL_SAMPLE_RATE 0.1F // in seconds, ie: 10Hz (or 1000ms * rate = sleep time)
+#define ALT_ALPHA 0.50F
+#define ALT_SAMPLE_RATE 0.1F
+#define LGACC_ALPHA 0.50F
+#define LGACC_SAMPLE_RATE 0.1F
+#define MG_ALPHA 0.50F
+#define GYRO_ALPHA 0.50F
+#define GYRO_SAMPLE_RATE 0.1F
+#define GPS_SAMPLE_RATE 0.2F
+#define ANALOG_SAMPLE_RATE 2.0F
+#define DECISION_SAMPLE_RATE 0.1F
+#define TELEM_RATE_SLOW 5.0F
+#define TELEM_RATE_MED 1.0F
+#define TELEM_RATE_FAST 0.5F
 
 #define RATE_TO_MS(A)   (int)(1000.0 * A)
 
@@ -65,53 +68,53 @@
 #define VOLTAGE_DIVIDER 0.13888888
 
 #if defined(__AVR_ATmega168__) ||defined(__AVR_ATmega168P__) ||defined(__AVR_ATmega328P__)
-  #define VOLTAGE_REF 5.0
-  #define V_PER_STEP 0.0048828125 // vref / adc_max
-  #define MV_PER_STEP 4.8828125
+  #define VOLTAGE_REF 5.0F
+  #define V_PER_STEP 0.0048828125F // vref / adc_max
+  #define MV_PER_STEP 4.8828125F
   #define ACCEL_X_CENTER 337
   #define ACCEL_Y_CENTER 337
   #define ACCEL_Z_CENTER 337
   // for 10-bit ADC, range is 0-1023
   // ((3.3/5.0) * 1023) / 2 = 337.59 -> center point
   // 200/337.59 = 0.59243761002991 G's per step
-  #define G_PER_STEP 0.59243761
+  #define G_PER_STEP 0.59243761F
 
 // Mega 1280 & 2560 (5v)
 #elif defined(__AVR_ATmega1280__) || defined(__AVR_ATmega2560__)
-  #define VOLTAGE_REF 5.0
-  #define V_PER_STEP 0.0048828125
-  #define MV_PER_STEP 4.8828125
+  #define VOLTAGE_REF 5.0F
+  #define V_PER_STEP 0.0048828125F
+  #define MV_PER_STEP 4.8828125F
   #define ACCEL_X_CENTER 337
   #define ACCEL_Y_CENTER 337
   #define ACCEL_Z_CENTER 337
-  #define G_PER_STEP 0.59243761
+  #define G_PER_STEP 0.59243761F
 
 // Due and others (3.3v)
 #else
-  #define VOLTAGE_REF 3.3
-  #define V_PER_STEP 0.00322265625
-  #define MV_PER_STEP 3.22265625
+  #define VOLTAGE_REF 3.3F
+  #define V_PER_STEP 0.00322265625F
+  #define MV_PER_STEP 3.22265625F
   #define ACCEL_X_CENTER 512
   #define ACCEL_Y_CENTER 512
   #define ACCEL_Z_CENTER 512
   // for 10-bit ADC (default setting), range is 0-1023
   // 1024 / 2 = 512 -> center point
   // 200/512 = 0.390625 G's per step
-  #define G_PER_STEP 0.390625
+  #define G_PER_STEP 0.390625F
 #endif
 
 
 #define LED_PIN 13
 #define BUZZER_PIN 8
 
-#define DEFAULT_ASCENT_THRESHOLD 45              // in m/s^2
-#define DEFAULT_ALT_ASCENT_THRESHOLD 25         // in meters from starting altitude
-#define DEFAULT_ALT_VEL_THRESHOLD 20            // in meters / second
-#define DEFAULT_APOGEE_THRESHOLD 15             // in m/s^2
-#define DEFAULT_ALT_VEL_APOGEE_THRESHOLD -5     // in meters / second
-#define DEFAULT_TOUCHDOWN_THRESHOLD 15	        // in m/s^2
-#define DEFAULT_MAIN_ALTITUDE 300               // in meters (added to deck altitude)
-#define DEFAULT_SEALEVEL_PRESSURE 1013.21       // in h pascals, 101325
+#define DEFAULT_ASCENT_THRESHOLD 45.0F          // in m/s^2
+#define DEFAULT_ALT_ASCENT_THRESHOLD 25.0F      // in meters from starting altitude
+#define DEFAULT_ALT_VEL_THRESHOLD 20.0F         // in meters / second
+#define DEFAULT_APOGEE_THRESHOLD 15.0F          // in m/s^2
+#define DEFAULT_ALT_VEL_APOGEE_THRESHOLD -5.0F  // in meters / second
+#define DEFAULT_TOUCHDOWN_THRESHOLD 15.0F       // in m/s^2
+#define DEFAULT_MAIN_ALTITUDE 300.0F            // in meters (added to deck altitude)
+#define DEFAULT_SEALEVEL_PRESSURE 1013.21F      // in h pascals, 101325
 
 // errors and warnings
 #define ERROR_SD 1
@@ -191,19 +194,20 @@ volatile int cont1 = 0;
 volatile int cont2 = 0;
 volatile int cont3 = 0;
 volatile int cont4 = 0;
-volatile float voltage = 0.0;
+volatile float voltage = 0.0F;
 
-float latitude = 0.0;
-float longitude = 0.0;
+float latitude = 0.0F;
+float longitude = 0.0F;
 
 int gpsBufferLoc = 0;
-char gpsBuffer[256] = "";
+char gpsBuffer[GPS_BUFFER_SIZE];
 
 static String printBuffer;
 
 float sealevelPressure = DEFAULT_SEALEVEL_PRESSURE;
-float startingAltitude = 0;
-float maxAltitude = 0;
+float startingAltitude = 0.0F;
+float maxAltitude = -1000.0F;
+float maxVelocity = 0.0F;
 float ascentThreshold = DEFAULT_ASCENT_THRESHOLD;
 float ascentAltThreshold = DEFAULT_ALT_ASCENT_THRESHOLD;
 float ascentVelThreshold = DEFAULT_ALT_VEL_THRESHOLD;
@@ -211,15 +215,15 @@ float apogeeThreshold = DEFAULT_APOGEE_THRESHOLD;
 float apogeeVelThreshold = DEFAULT_ALT_VEL_APOGEE_THRESHOLD;
 float touchdownThreshold = DEFAULT_TOUCHDOWN_THRESHOLD;
 float mainDeployAltitude = DEFAULT_MAIN_ALTITUDE;
-unsigned long launchTime = 0;
-unsigned long apogeeTime = 0;
-unsigned long mainTime = 0;
-unsigned long touchdownTime = 0;
-unsigned long maxForce = 0;
-float minTemperature = 0;
-float maxTemperature = 0;
+unsigned long launchTime = 0L;
+unsigned long apogeeTime = 0L;
+unsigned long mainTime = 0L;
+unsigned long touchdownTime = 0L;
+float maxForce = 0.0F;
+float minTemperature = 0.0F;
+float maxTemperature = 0.0F;
 float minPressure = DEFAULT_SEALEVEL_PRESSURE; // we set this to the first reading anyway, but just to be safe
-float maxPressure = 0;
+float maxPressure = 0.0F;
 bool statsOut = false;
 
 // used for tracking times that relays are activated
@@ -308,6 +312,9 @@ void beepError(int pulses, bool halt)
     }
 }
 
+/**
+* Set up serial lines.
+*/
 void setupSerials()
 {
     TelemSerial->begin(TELEM_BAUD);
@@ -318,6 +325,9 @@ void setupSerials()
     #endif
 }
 
+/**
+* Set up our GPIO pins.
+*/
 void setupPins()
 {
     pinMode(LED_PIN, OUTPUT);
@@ -332,6 +342,9 @@ void setupPins()
     #endif
 }
 
+/**
+* Set up our SD card, create file for this run.
+*/
 void setupSd()
 {
     if (!SD.begin(SD_CHIP_SELECT))
@@ -356,14 +369,18 @@ void setupSd()
 		logFile = SD.open(filename, FILE_WRITE);
 		if( ! logFile )
 		{
-		    TelemSerial->println("Unable to write to SD");
+		    TelemSerial->println("ERROR: Unable to write to SD");
+		    #if __DEBUG
+			DebugSerial->println("ERROR: Unable to write to SD");
+			#endif
 		    beepWarning(WARN_SD);
+		    return;
 		}
 		else
 		{
 		    logSd = true;
 		    #if __DEBUG
-			DebugSerial->print("Writing to ");
+			DebugSerial->print("INFO: Writing to ");
 			DebugSerial->println(filename);
 			#endif
 		}
@@ -373,33 +390,50 @@ void setupSd()
 	#endif
 }
 
+/**
+* Set up the High G Analog Accelerometer.
+*/
 void setupHighGAccel()
 {
     hg_x.filteredVal = 0;
     hg_y.filteredVal = 0;
     hg_z.filteredVal = 0;
-    // seed filter data
-    //hg_x.filteredVal = (float)analogRead(ACCEL_X_PIN);
-    //hg_y.filteredVal = (float)analogRead(ACCEL_Y_PIN);
-    //hg_z.filteredVal = (float)analogRead(ACCEL_Z_PIN);
 }
 
+/**
+* Sample from the High G Accelerometer.
+*/
 void readHighGAccel()
 {
     // x
     float sample = (float)(analogRead(ACCEL_X_PIN) - ACCEL_X_CENTER);
     sample *= G_PER_STEP;
     linearCompFilter(&hg_x, sample, ACCEL_ALPHA, ACCEL_SAMPLE_RATE);
+    if (abs(hg_x.filteredVal) > maxForce)
+    {
+        maxForce = abs(hg_x.filteredVal);
+    }
     // y
     sample = (float)(analogRead(ACCEL_Y_PIN) - ACCEL_Y_CENTER);
     sample *= G_PER_STEP;
     linearCompFilter(&hg_y, sample, ACCEL_ALPHA, ACCEL_SAMPLE_RATE);
+    if (abs(hg_y.filteredVal) > maxForce)
+    {
+        maxForce = abs(hg_y.filteredVal);
+    }
     // z
     sample = (float)(analogRead(ACCEL_Z_PIN) - ACCEL_Z_CENTER);
     sample *= G_PER_STEP;
     linearCompFilter(&hg_z, sample, ACCEL_ALPHA, ACCEL_SAMPLE_RATE);
+    if (abs(hg_z.filteredVal) > maxForce)
+    {
+        maxForce = abs(hg_z.filteredVal);
+    }
 }
 
+/**
+* Set up Barometric Pressure / Temperature / Altimeter.
+*/
 void setupAltimeter()
 {
     if (!bmp.begin(BMP085_MODE_ULTRALOWPOWER))
@@ -415,6 +449,9 @@ void setupAltimeter()
 	#endif
 }
 
+/**
+* Sample from Altimeter module.
+*/
 void readAltimeter()
 {
     sensors_event_t event;
@@ -426,13 +463,40 @@ void readAltimeter()
     float lastAlt = altitude.filteredVal;
     linearCompFilter(&altitude, bmp.pressureToAltitude(sealevelPressure, event.pressure, rawTemperature),
                      ALT_ALPHA, ALT_SAMPLE_RATE);
+    if (altitude.filteredVal > maxAltitude)
+    {
+        maxAltitude = altitude.filteredVal;
+    }
+    if (pressure.filteredVal > maxPressure)
+    {
+        maxPressure = pressure.filteredVal;
+    }
+    if (pressure.filteredVal < minPressure)
+    {
+        minPressure = pressure.filteredVal;
+    }
+    if (temperature.filteredVal > maxTemperature)
+    {
+        maxTemperature = temperature.filteredVal;
+    }
+    if (temperature.filteredVal < minTemperature)
+    {
+        minTemperature = temperature.filteredVal;
+    }
     if (lastAlt != 0)
     {
-        linearCompFilter(&alt_vel, ((altitude.filteredVal - lastAlt) * ALT_SAMPLE_RATE),
+        linearCompFilter(&alt_vel, ((altitude.filteredVal - lastAlt) / ALT_SAMPLE_RATE),
                      ALT_ALPHA, ALT_SAMPLE_RATE);
+        if (alt_vel.filteredVal > maxVelocity)
+        {
+            maxVelocity = alt_vel.filteredVal;
+        }
     }
 }
 
+/**
+* Set up the Low G Accelerometer and Magnetometer (shared module).
+*/
 void setupLowGAccel()
 {
     if (!accel.begin())
@@ -458,6 +522,9 @@ void setupLowGAccel()
     #endif
 }
 
+/**
+* Sample from the Low G Accelerometer and Magnetometer.
+*/
 void readLowGAccel()
 {
     sensors_event_t event;
@@ -471,6 +538,9 @@ void readLowGAccel()
     linearCompFilter(&mag_z, event.magnetic.z, LGACC_ALPHA, LGACC_SAMPLE_RATE);
 }
 
+/**
+* Set up the Gyro.
+*/
 void setupGyro()
 {
     if (!gyro.begin())
@@ -487,6 +557,9 @@ void setupGyro()
 	#endif
 }
 
+/**
+* Read from the Gryo.
+*/
 void readGyro()
 {
     gyro.read();
@@ -495,6 +568,9 @@ void readGyro()
     linearCompFilter(&gyro_z, gyro.data.z, GYRO_ALPHA, GYRO_SAMPLE_RATE);
 }
 
+/**
+* Set up the GPS.
+*/
 void setupGps()
 {
 	GPS.sendCommand(PMTK_SET_NMEA_OUTPUT_RMCGGA);
@@ -505,45 +581,37 @@ void setupGps()
 	#endif
 }
 
-void testContinuity()
-{
-    cont1 = analogRead(PYRO_1_CONT_PIN);
-    cont2 = analogRead(PYRO_2_CONT_PIN);
-    cont3 = analogRead(PYRO_3_CONT_PIN);
-    cont4 = analogRead(PYRO_4_CONT_PIN);
-}
-
-void testVoltage()
-{
-    float v = (float)analogRead(VOLTAGE_PIN);
-    v *= V_PER_STEP;
-    v /= VOLTAGE_DIVIDER;
-    voltage = v;
-}
-
 /**
-* Read/parse data from the GPS serial line.
-* Side-effect of updating the GPS object.
+* Read from the GPS serial buffer.
 */
-static WORKING_AREA(gpsThreadWa, 128);
-static msg_t GpsThread(void *arg)
+void readGps()
 {
     char ser;
-    while(true)
+    while (GpsSerial->available())
     {
-        while (GpsSerial->available())
+        ser = GpsSerial->read();
+        if (ser == 13)
         {
-            ser = GpsSerial->read();
-            if (ser == 13)
+            // ignore
+        }
+        if (ser == 10)
+        {
+            gpsBuffer[gpsBufferLoc] = '\0';
+            #if __DEBUG_GPS
+            DebugSerial->print(gpsBuffer);
+            #endif
+            #if __LOG_RAW_GPS
+            if (logSd)
             {
-                // ignore
+                logFile.print(gpsBuffer);
             }
-            if (ser == 10)
-            {
-                gpsBuffer[gpsBufferLoc] = '\0';
-                #if __DEBUG
-                //DebugSerial->print(gpsBuffer);
-                #endif
+            #endif // __LOG_RAW_GPS
+            #if __TELEM_RAW_GPS
+            TelemSerial->print(gpsBuffer);
+            #endif // __TELEM_RAW_GPS
+            // ignore $PGTOP messages (device specific)
+            //if (!gpsBuffer[1] == 'P')
+            //{
                 if (GPS.parse(gpsBuffer))
                 {
                     float latDeg = (int)GPS.latitude / 100;
@@ -561,16 +629,66 @@ static msg_t GpsThread(void *arg)
                         longitude *= -1.0;
                     }
                 }
-                gpsBufferLoc = 0;
-            }
-            else
-            {
-                gpsBuffer[gpsBufferLoc] = ser;
-                gpsBufferLoc++;
-            }
+                else
+                {
+                    #if __DEBUG
+                    //DebugSerial->println("ERROR: error parsing GPS sentence");
+                    #endif
+                }
+            //}
+            gpsBufferLoc = 0;
         }
-        // wait 1 second from the last parse, timing is not critical, so it doesn't matter if we drift a bit
-        chThdSleepUntil(chTimeNow() + MS2ST( RATE_TO_MS(GPS_SAMPLE_RATE) ));
+        else if (gpsBufferLoc >= GPS_BUFFER_SIZE)
+        {
+            #if __DEBUG
+            DebugSerial->println("ERROR: GPS buffer overrun");
+            #endif
+            gpsBuffer[GPS_BUFFER_SIZE - 1] = '\0';
+            gpsBufferLoc = 0;
+        }
+        else
+        {
+            gpsBuffer[gpsBufferLoc] = ser;
+            gpsBufferLoc++;
+        }
+    }
+}
+
+/**
+* Test the analog continuity lines for voltage.
+*/
+void testContinuity()
+{
+    cont1 = analogRead(PYRO_1_CONT_PIN);
+    cont2 = analogRead(PYRO_2_CONT_PIN);
+    cont3 = analogRead(PYRO_3_CONT_PIN);
+    cont4 = analogRead(PYRO_4_CONT_PIN);
+}
+
+/**
+* Test our input voltage analog line (at about 6:1).
+*/
+void testVoltage()
+{
+    float v = (float)analogRead(VOLTAGE_PIN);
+    v *= V_PER_STEP;
+    v /= VOLTAGE_DIVIDER;
+    voltage = v;
+}
+
+/**
+* Read/parse data from the GPS serial line.
+* Side-effect of updating the GPS object.
+*/
+static WORKING_AREA(gpsThreadWa, 32);
+static msg_t GpsThread(void *arg)
+{
+    systime_t time = chTimeNow();
+    while(true)
+    {
+        time += MS2ST( RATE_TO_MS(GPS_SAMPLE_RATE));
+        readGps();
+        chThdSleepUntil(time);
     }
 }
 
@@ -782,6 +900,7 @@ void setup()
     setupLowGAccel();
     setupGyro();
     setupGps();
+    setupSd();
 
     printBuffer.reserve(400);
 
@@ -967,7 +1086,7 @@ void deployMain()
 */
 void logStatus()
 {
-    #if __DEBUG
+    #if __DEBUG_STACK
     DebugSerial->print("$STK, hga:");
     DebugSerial->print(chUnusedStack(hgAccelThreadWa, sizeof(hgAccelThreadWa)));
     DebugSerial->print(", lga:");
@@ -1187,15 +1306,20 @@ void logStats()
 	dtostrf(maxPressure, 5, 2, maxpress);
 	char minpress[8];
 	dtostrf(minPressure, 5, 2, minpress);
+	char maxf[16];
+	dtostrf(maxForce, 5, 2, maxf);
+	char maxvel[16];
+	dtostrf(maxVelocity, 5, 2, maxvel);
 
 	printBuffer = "========= Flight Stats ============\r\n";
 	printBuffer += "Starting Altitude: "; printBuffer += stalt; printBuffer += "\r\n";
 	printBuffer += "Maximum Altitude: "; printBuffer += maxalt; printBuffer += "\r\n";
+	printBuffer += "Maximum Force: "; printBuffer += maxf; printBuffer += "\r\n";
+	printBuffer += "Maximum Velocity: "; printBuffer += maxvel; printBuffer += "\r\n";
 	printBuffer += "Maximum Temperature: "; printBuffer += maxtemp; printBuffer += "\r\n";
 	printBuffer += "Minimum Temperature: "; printBuffer += mintemp; printBuffer += "\r\n";
 	printBuffer += "Maximum Pressure: "; printBuffer += maxpress; printBuffer += "\r\n";
 	printBuffer += "Minimum Pressure: "; printBuffer += minpress; printBuffer += "\r\n";
-	printBuffer += "Maximum Force: "; printBuffer += maxForce; printBuffer += "\r\n";
 	printBuffer += "Launch Time: "; printBuffer += launchTime; printBuffer += "\r\n";
 	printBuffer += "Apogee Time: "; printBuffer += apogeeTime; printBuffer += "\r\n";
 	printBuffer += "Main Time: "; printBuffer += mainTime; printBuffer += "\r\n";

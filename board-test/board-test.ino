@@ -160,15 +160,15 @@ void setupHighGAccel()
 
 void testHighGAccel()
 {
-    float xVal = (float)(analogRead(ACCEL_X_PIN) - ACCEL_X_CENTER);
-    xVal *= MV_PER_STEP;
-    xVal /= ACCEL_MV_TO_G;
-    float yVal = (float)(analogRead(ACCEL_Y_PIN) - ACCEL_Y_CENTER);
-    yVal *= MV_PER_STEP;
-    yVal /= ACCEL_MV_TO_G;
-    float zVal = (float)(analogRead(ACCEL_Z_PIN) - ACCEL_Z_CENTER);
-    zVal *= MV_PER_STEP;
-    zVal /= ACCEL_MV_TO_G;
+    float xVal = (float)(analogRead(ACCEL_X_PIN) /* - ACCEL_X_CENTER*/);
+    //xVal *= MV_PER_STEP;
+    //xVal /= ACCEL_MV_TO_G;
+    float yVal = (float)(analogRead(ACCEL_Y_PIN) /*- ACCEL_Y_CENTER*/);
+    //yVal *= MV_PER_STEP;
+    //yVal /= ACCEL_MV_TO_G;
+    float zVal = (float)(analogRead(ACCEL_Z_PIN) /*- ACCEL_Z_CENTER*/);
+    //zVal *= MV_PER_STEP;
+    //zVal /= ACCEL_MV_TO_G;
     DebugSerial.print("INFO: Analog Accel (");
     DebugSerial.print(xVal);
     DebugSerial.print(",");
@@ -326,11 +326,11 @@ void setup()
 {
 	setupSerials();
 	setupPins();
-    //setupHighGAccel();
-    //setupAltimeter();
-    //setupLowGAccel();
-    //setupGyro();
-    //setupGps();
+    setupHighGAccel();
+    setupAltimeter();
+    setupLowGAccel();
+    setupGyro();
+    setupGps();
     setupSd();
     DebugSerial.println("INFO: Setup complete");
     delay(1000);
@@ -338,34 +338,35 @@ void setup()
 
 void loop()
 {
+    DebugSerial.println("");
 	DebugSerial.println("INFO: Testing...");
-	//TelemSerial.println("Testing telemetry...");
+	TelemSerial.println("Testing telemetry...");
 	digitalWrite(LED_PIN, HIGH);   // set the LED on
 
     testSd();
-    //testHighGAccel();
-    //testAltimeter();
-    //testLowGAccel();
-    //testGyro();
-    //testGps();
-    //testContinuity();
-    //testVoltage();
-    //testBuzzer();
+    testHighGAccel();
+    testAltimeter();
+    testLowGAccel();
+    testGyro();
+    testGps();
+    testContinuity();
+    testVoltage();
+    testBuzzer();
 
-    //DebugSerial.print("INFO: Pyro Pin ");
-    //DebugSerial.println(pyroPin);
-	//digitalWrite(pyroPin, HIGH);
-	//delay(1000);              // wait for a second
-	//digitalWrite(LED_PIN, LOW);    // set the LED off
-	//digitalWrite(pyroPin, LOW);
+    DebugSerial.print("INFO: Pyro Pin ");
+    DebugSerial.println(pyroPin);
+	digitalWrite(pyroPin, HIGH);
+	delay(1000);              // wait for a second
+	digitalWrite(LED_PIN, LOW);    // set the LED off
+	digitalWrite(pyroPin, LOW);
 
-	//pyroPin++;
-	//if (pyroPin > PYRO_4_PIN)
-    //{
-    //    pyroPin = PYRO_1_PIN;
-    //}
+	pyroPin++;
+	if (pyroPin > PYRO_4_PIN)
+    {
+        pyroPin = PYRO_1_PIN;
+    }
 
-    delay(25000);
+    delay(5000);
 }
 
 
