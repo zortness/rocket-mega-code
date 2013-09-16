@@ -1109,8 +1109,8 @@ void logStatus()
 	dtostrf(altitude.filteredVal, 5, 2, alt);
 	char vel[8];
 	dtostrf(alt_vel.filteredVal, 5, 2, vel);
-	char prs[8];
-	dtostrf(pressure.filteredVal, 8, 2, prs);
+	char prs[10];
+	dtostrf(pressure.filteredVal, 7, 2, prs);
 	char tem[8];
 	dtostrf(temperature.filteredVal, 4, 2, tem);
 
@@ -1174,15 +1174,15 @@ void logStatus()
 	if (GPS.fix)
 	{
 		char lat[16];
-		dtostrf(latitude, 10, 6, lat);
+		dtostrf(latitude, 9, 6, lat);
 		char lon[16];
-		dtostrf(longitude, 10, 6, lon);
+		dtostrf(longitude, 9, 6, lon);
 		char spd[16];
-		dtostrf(GPS.speed, 6, 2, spd);
+		dtostrf(GPS.speed, 3, 2, spd);
 		char ang[16];
-		dtostrf(GPS.angle, 6, 2, ang);
+		dtostrf(GPS.angle, 3, 2, ang);
 		char galt[16];
-		dtostrf(GPS.altitude, 6, 2, galt);
+		dtostrf(GPS.altitude, 3, 2, galt);
 
 		//printBuffer += "\r\nL:";
 		printBuffer += ',';
@@ -1213,8 +1213,8 @@ void logStatus()
     dtostrf(altitude.rawVal, 5, 2, ralt);
     char rvel[8];
     dtostrf(alt_vel.rawVal, 5, 2, rvel);
-    char rprs[8];
-    dtostrf(pressure.rawVal, 8, 2, rprs);
+    char rprs[10];
+    dtostrf(pressure.rawVal, 7, 2, rprs);
     char rtem[8];
     dtostrf(temperature.rawVal, 4, 2, rtem);
 
