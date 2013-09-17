@@ -20,6 +20,8 @@
 #define GPS_BAUD 9600
 #define GPS_SERIAL Serial2
 #define GPS_BUFFER_SIZE 256
+#define COMMAND_SERIAL Serial // Serial1
+#define COMMAND_BUFFER_SIZE 32
 
 #define SD_CHIP_SELECT 48
 //#define SPI_MISO_PIN 50
@@ -43,6 +45,7 @@
 #define GYRO_ALPHA 0.50F
 #define GYRO_SAMPLE_RATE 0.1F
 #define GPS_SAMPLE_RATE 0.2F
+#define COMMAND_SAMPLE_RATE 0.2F
 #define ANALOG_SAMPLE_RATE 2.0F
 #define DECISION_SAMPLE_RATE 0.1F
 #define TELEM_RATE_SLOW 5.0F
@@ -50,6 +53,8 @@
 #define TELEM_RATE_FAST 0.5F
 
 #define RATE_TO_MS(A)   (int)(1000.0 * A)
+
+#define NUM_EVENTS 4 // number of pyro event pins
 
 #define PYRO_1_PIN 42
 #define PYRO_2_PIN 43
@@ -141,7 +146,6 @@
 #define MODE_TOUCHDOWN 6
 #define MODE_PAUSE 7
 
-
 // includes
 #include <Arduino.h>
 #include <SPI.h>
@@ -163,6 +167,7 @@ typedef struct {
 HardwareSerial *DebugSerial = &DEBUG_SERIAL;
 HardwareSerial *TelemSerial = &TELEM_SERIAL;
 HardwareSerial *GpsSerial = &GPS_SERIAL;
+HardwareSerial *CommandSerial = &COMMAND_SERIAL;
 File logFile;
 boolean logSd = false;
 Adafruit_GPS GPS(GpsSerial); // gets read by printing thread
@@ -199,8 +204,10 @@ volatile float voltage = 0.0F;
 float latitude = 0.0F;
 float longitude = 0.0F;
 
-int gpsBufferLoc = 0;
-char gpsBuffer[GPS_BUFFER_SIZE];
+static uint8_t gpsBufferLoc = 0;
+static char gpsBuffer[GPS_BUFFER_SIZE];
+static uint8_t cmdBufferLoc = 0;
+static char cmdBuffer[COMMAND_BUFFER_SIZE];
 
 static String printBuffer;
 
@@ -226,9 +233,8 @@ float minPressure = DEFAULT_SEALEVEL_PRESSURE; // we set this to the first readi
 float maxPressure = 0.0F;
 bool statsOut = false;
 
-// used for tracking times that relays are activated
-unsigned long drogueDeployStart = 0;
-unsigned long mainDeployStart = 0;
+// used for tracking times that pyros are activated
+unsigned long eventStart[4] = {0,0,0,0};
 
 volatile uint8_t mode = MODE_STARTUP;
 
@@ -241,8 +247,10 @@ void modeApogee();
 void modeDescent();
 void modeDescent2();
 void modeTouchdown();
-void deployMain();
-void deployDrogue();
+void startEvent(int eventNum);
+void stopEvent(int eventNum);
+void handleCommand(const char *cmd);
+bool startsWith(const char *pre, const char *str);
 
 /**
 * Linear version of a complimentary filter.
@@ -269,6 +277,8 @@ float linearCompFilter(volatile filter_val_t *val, float rawVal, float alpha, fl
 */
 void beepWarning(int pulses)
 {
+    DebugSerial->print("WARN: ");
+    DebugSerial->println(pulses);
     for(int i = 0; i < pulses; i++)
     {
         digitalWrite(LED_PIN, HIGH);
@@ -289,7 +299,10 @@ void beepError(int pulses, bool halt)
     if (halt)
     {
         noInterrupts();
+        chSysHalt();
     }
+    DebugSerial->print("ERROR: ");
+    DebugSerial->println(pulses);
     while(true)
     {
         for(int i = 0; i < pulses; i++)
@@ -350,7 +363,11 @@ void setupSd()
     if (!SD.begin(SD_CHIP_SELECT))
 	{
 		TelemSerial->println("ERROR: SD Card init failed!");
-		return beepError(ERROR_SD, true);
+		#if __DEBUG
+        DebugSerial->println("ERROR: SD Card init failed!");
+        #endif
+		//chSysHalt();
+		return beepError(ERROR_SD, false);
 	}
 	else
 	{
@@ -654,6 +671,43 @@ void readGps()
     }
 }
 
+void readCommand()
+{
+    char ser;
+    while (CommandSerial->available())
+    {
+        ser = CommandSerial->read();
+        if (ser == 13 || ser == 10 || ser == ';')
+        {
+            if (cmdBufferLoc > 0)
+            {
+                cmdBuffer[cmdBufferLoc] = '\0';
+                #if __DEBUG
+                DebugSerial->print("$CMD,");
+                DebugSerial->println(cmdBuffer);
+                #endif
+                TelemSerial->print("$CMD,");
+                TelemSerial->println(cmdBuffer);
+                handleCommand(cmdBuffer);
+                cmdBufferLoc = 0;
+            }
+        }
+        else if (cmdBufferLoc >= COMMAND_BUFFER_SIZE)
+        {
+            #if __DEBUG
+            DebugSerial->println("ERROR: Command buffer overrun");
+            #endif
+            cmdBuffer[COMMAND_BUFFER_SIZE - 1] = '\0';
+            cmdBufferLoc = 0;
+        }
+        else
+        {
+            cmdBuffer[cmdBufferLoc] = ser;
+            cmdBufferLoc++;
+        }
+    }
+}
+
 /**
 * Test the analog continuity lines for voltage.
 */
@@ -774,6 +828,21 @@ static msg_t AnalogThread(void *arg)
 }
 
 /**
+* Read any incoming commands.
+*/
+static WORKING_AREA(commandThreadWa, 256);
+static msg_t CommandThread(void *arg)
+{
+    systime_t time = chTimeNow();
+    while(true)
+    {
+        time += MS2ST( RATE_TO_MS(COMMAND_SAMPLE_RATE));
+        readCommand();
+        chThdSleepUntil(time);
+    }
+}
+
+/**
 * Decision thread. Runs at High Priority. Makes decisions.
 */
 static WORKING_AREA(decisionThreadWa, 256);
@@ -815,6 +884,8 @@ void mainThread()
     chThdCreateStatic(gpsThreadWa, sizeof(gpsThreadWa), NORMALPRIO, GpsThread, NULL); // gps
     delay(10);
     chThdCreateStatic(analogThreadWa, sizeof(analogThreadWa), NORMALPRIO, AnalogThread, NULL); // analog
+    delay(10);
+    chThdCreateStatic(commandThreadWa, sizeof(commandThreadWa), NORMALPRIO, CommandThread, NULL); // command
 
     // let sensor threads run for a few seconds to stabilize
     chThdSleepUntil(time += MS2ST(5000));
@@ -861,15 +932,12 @@ void mainThread()
 
         // check relays
         unsigned long t = millis();
-        if (drogueDeployStart > 0 && (drogueDeployStart + PYRO_ON_TIME) < t)
+        for(int i = 0; i < NUM_EVENTS; i++)
         {
-            digitalWrite(PYRO_2_PIN, LOW);
-            drogueDeployStart = 0;
-        }
-        if (mainDeployStart > 0 && (mainDeployStart + PYRO_ON_TIME) < t)
-        {
-            digitalWrite(PYRO_1_PIN, LOW);
-            mainDeployStart = 0;
+            if (eventStart[i] > 0 && (eventStart[i] + PYRO_ON_TIME) < t)
+            {
+                stopEvent(i+1);
+            }
         }
 
         // toggle LED
@@ -990,7 +1058,7 @@ void modeAscent()
 void modeApogee()
 {
 	// wait for altitude to start dropping?
-	deployDrogue();
+	startEvent(2);
 	mode = MODE_DESCENT;
 	String msg = "INFO: Descending";
 	#if __DEBUG
@@ -1015,7 +1083,7 @@ void modeDescent()
 	{
 		mode = MODE_DESCENT2;
 		mainTime = millis();
-		deployMain();
+		startEvent(1);
 		String msg = "INFO: Main Deploy";
         #if __DEBUG
         DebugSerial->println(msg);
@@ -1063,22 +1131,75 @@ void modeTouchdown()
     // low power mode?
 }
 
-/**
-* Deploy drogue chute
-*/
-void deployDrogue()
+void startEvent(int eventNum)
 {
-    digitalWrite(PYRO_2_PIN, HIGH);
-    drogueDeployStart = millis();
+    switch(eventNum)
+    {
+        case 1: digitalWrite(PYRO_1_PIN, HIGH); break;
+        case 2: digitalWrite(PYRO_2_PIN, HIGH); break;
+        case 3: digitalWrite(PYRO_3_PIN, HIGH); break;
+        case 4: digitalWrite(PYRO_4_PIN, HIGH); break;
+        default: return;
+    }
+    eventStart[eventNum-1] = millis();
+}
+
+void stopEvent(int eventNum)
+{
+    switch(eventNum)
+    {
+        case 1: digitalWrite(PYRO_1_PIN, LOW); break;
+        case 2: digitalWrite(PYRO_2_PIN, LOW); break;
+        case 3: digitalWrite(PYRO_3_PIN, LOW); break;
+        case 4: digitalWrite(PYRO_4_PIN, LOW); break;
+        default: return;
+    }
+    eventStart[eventNum-1] = 0;
 }
 
 /**
-* Deploy main chute
+* Handle an incomming command.
 */
-void deployMain()
+void handleCommand(const char *cmd)
 {
-    digitalWrite(PYRO_1_PIN, HIGH);
-    mainDeployStart = millis();
+    if (startsWith("deploy main", cmd))
+    {
+        startEvent(1);
+    }
+    else if (startsWith("deploy drogue", cmd))
+    {
+        startEvent(2);
+    }
+    else if (startsWith("deploy all", cmd))
+    {
+        startEvent(1);
+        startEvent(2);
+        startEvent(3);
+        startEvent(4);
+    }
+    else if (startsWith("deploy ", cmd) && strlen(cmd) > 7) // by number
+    {
+        startEvent(atoi(&(cmd[7])));
+    }
+    else if (startsWith("set mode", cmd) && strlen(cmd) > 9)
+    {
+        mode = atoi(&(cmd[9]));
+        #if __DEBUG
+        DebugSerial->print("INFO: MODE set to "); DebugSerial->print(mode);
+        #endif
+    }
+    else
+    {
+        #if __DEBUG
+        DebugSerial->print("ERROR: unknown command: ");
+        DebugSerial->println(cmd);
+        #endif
+    }
+}
+
+bool startsWith(const char *pre, const char *str)
+{
+    return strncmp(pre, str, strlen(pre)) == 0;
 }
 
 /**
@@ -1099,6 +1220,8 @@ void logStatus()
     DebugSerial->print(chUnusedStack(gpsThreadWa, sizeof(gpsThreadWa)));
     DebugSerial->print(", ana:");
     DebugSerial->print(chUnusedStack(analogThreadWa, sizeof(analogThreadWa)));
+    DebugSerial->print(", cmd:");
+    DebugSerial->print(chUnusedStack(commandThreadWa, sizeof(commandThreadWa)));
     DebugSerial->print(", dec:");
     DebugSerial->print(chUnusedStack(decisionThreadWa, sizeof(decisionThreadWa)));
     DebugSerial->print(", main:");
